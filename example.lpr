@@ -7,7 +7,7 @@ uses
 
 var
   Sock: TSocket;
-  Msg: TUDPStringResult;
+  Msg: TUDPStringMessage;
 begin
   Sock := UDPSocket(stDualStack);
   try

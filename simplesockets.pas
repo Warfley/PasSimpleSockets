@@ -32,13 +32,13 @@ type
     DataSize: SizeInt;
   end;
 
-  generic TUDPDataResult<T> = record
+  generic TUDPDataMessage<T> = record
     FromAddr: TNetworkAddress;
     FromPort: Word;
     Data: T;
   end;
 
-  TUDPStringResult = specialize TUDPDataResult<String>;
+  TUDPStringMessage = specialize TUDPDataMessage<String>;
 
   { Exceptions }
 
@@ -93,17 +93,17 @@ function UDPSend(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress;
                   ReceiverPort: Word; ABuffer: Pointer; ASize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
 
 function TCPReceiveStr(const ASocket: TSocket; MaxLength: SizeInt; AFlags: Integer = 0): String; inline;
-function UDPReceiveStr(const ASocket: TSocket; MaxLength: SizeInt = MaxUDPPackageSize; AFlags: Integer = 0): TUDPStringResult; inline;
+function UDPReceiveStr(const ASocket: TSocket; MaxLength: SizeInt = MaxUDPPackageSize; AFlags: Integer = 0): TUDPStringMessage; inline;
 function TCPSendStr(const ASocket: TSocket; const AData: String; AFlags: Integer = 0): SizeInt; inline;
 function UDPSendStr(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: String; AFlags: Integer = 0): SizeInt; inline;
  
 generic function TCPReceive<T>(const ASocket: TSocket; AFlags: Integer = 0): T; inline;
-generic function UDPReceive<T>(const ASocket: TSocket; AFlags: Integer = 0): specialize TUDPDataResult<T>; inline;
+generic function UDPReceive<T>(const ASocket: TSocket; AFlags: Integer = 0): specialize TUDPDataMessage<T>; inline;
 generic function TCPSend<T>(const ASocket: TSocket; constref AData: T; AFlags: Integer = 0): SizeInt; inline;
 generic function UDPSend<T>(const ASocket: TSocket; constref ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: T; AFlags: Integer = 0): SizeInt; inline;
 
 generic function TCPReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TArray<T>; inline;
-generic function UDPReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TUDPDataResult<specialize TArray<T>>; inline;
+generic function UDPReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TUDPDataMessage<specialize TArray<T>>; inline;
 generic function TCPSendArray<T>(const ASocket: TSocket; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt; inline;
 generic function UDPSendArray<T>(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt; inline;
 
@@ -397,11 +397,11 @@ begin
 end;
 
 function UDPReceiveStr(const ASocket: TSocket; MaxLength: SizeInt;
-  AFlags: Integer): TUDPStringResult;
+  AFlags: Integer): TUDPStringMessage;
 var
   UdpMessage: TUDPResult;
 begin
-  Result := Default(specialize TUDPDataResult<String>);
+  Result := Default(specialize TUDPDataMessage<String>);
   SetLength(Result.Data, MaxLength);
   UdpMessage := UDPReceive(ASocket, @Result.Data[1], MaxLength, AFlags);
   SetLength(Result.Data, UdpMessage.DataSize);
@@ -434,7 +434,7 @@ begin
     Len += TCPReceive(ASocket, @PByte(@Result)[Len], SizeOf(Result) - Len, AFlags);
 end;
 
-generic function UDPReceive<T>(const ASocket: TSocket; AFlags: Integer = 0): specialize TUDPDataResult<T>;
+generic function UDPReceive<T>(const ASocket: TSocket; AFlags: Integer = 0): specialize TUDPDataMessage<T>;
 var
   UdpMessage: TUDPResult;
 begin
@@ -469,7 +469,7 @@ begin
   SetLength(Result, Len div SizeOf(T));
 end;
 
-generic function UDPReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TUDPDataResult<specialize TArray<T>>;
+generic function UDPReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TUDPDataMessage<specialize TArray<T>>;
 var
   UdpMessage: TUDPResult;
 begin

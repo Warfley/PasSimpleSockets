@@ -8,9 +8,10 @@
         <MainUnitHasCreateFormStatements Value="False"/>
         <MainUnitHasTitleStatement Value="False"/>
         <MainUnitHasScaledStatement Value="False"/>
+        <UseDefaultCompilerOptions Value="True"/>
       </Flags>
       <SessionStorage Value="InProjectDir"/>
-      <Title Value="example"/>
+      <Title Value="udpechoserver"/>
       <UseAppBundle Value="False"/>
       <ResourceType Value="res"/>
     </General>
@@ -26,13 +27,13 @@
     </RunParams>
     <Units>
       <Unit>
-        <Filename Value="example.lpr"/>
+        <Filename Value="udpechoserver.pas"/>
         <IsPartOfProject Value="True"/>
+        <UnitName Value="example"/>
       </Unit>
       <Unit>
-        <Filename Value="simplesockets.pas"/>
+        <Filename Value="..\simplesockets.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="SimpleSockets"/>
       </Unit>
     </Units>
   </ProjectOptions>
@@ -40,10 +41,11 @@
     <Version Value="11"/>
     <PathDelim Value="\"/>
     <Target>
-      <Filename Value="example"/>
+      <Filename Value="udpechoserver"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
+      <OtherUnitFiles Value=".."/>
       <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
   </CompilerOptions>

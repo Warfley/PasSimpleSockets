@@ -24,6 +24,12 @@ type
     AddressType: TAddressType;
   end;
 
+  TTCPConnection = record
+    ClientAddress: TNetworkAddress;
+    ClientPort: Word;
+    Socket: TSocket;
+  end;
+
   { UDP Return Types }
 
   TUDPResult = record
@@ -84,7 +90,10 @@ function UDPSocket(AType: TSocketType): TSocket; inline;
 procedure CloseSocket(const ASocket: TSocket); inline;
 
 procedure Bind(const ASocket: TSocket; const AAddress: TNetworkAddress; APort: Word);
+
 procedure TCPServerListen(const ASocket: TSocket; Backlog: Integer); inline;
+function TCPServerAccept(const ASocket: TSocket): TTCPConnection; inline;
+procedure TCPClientConnect(const ASocket: TSocket; const AAddress: TNetworkAddress; APort: Word); inline;
 
 function TCPReceive(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
 function UDPReceive(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt; AFlags: Integer = 0): TUDPResult;
@@ -321,6 +330,28 @@ procedure TCPServerListen(const ASocket: TSocket; Backlog: Integer);
 begin
   if fplisten(ASocket.FD, Backlog) <> 0 then raise
     ESocketError.Create(socketerror, 'listen');
+end;
+
+function TCPServerAccept(const ASocket: TSocket): TTCPConnection;
+var
+  addr: _TAddressUnion;
+  addrLen: SizeInt = SizeOf(addr);
+begin
+  Result.Socket.FD := fpaccept(ASocket.FD, @addr, @addrLen);
+  if SocketInvalid(Result.Socket.FD) then
+    raise ESocketError.Create(socketerror, 'accept');
+  Result.Socket.SocketType := ASocket.SocketType;
+  ReadAddr(@addr, ASocket.SocketType = stDualStack, Result.ClientAddress, Result.ClientPort);
+end;
+
+procedure TCPClientConnect(const ASocket: TSocket;
+  const AAddress: TNetworkAddress; APort: Word);
+var
+  addr: _TAddressUnion;
+begin
+  FillAddr(AAddress, APort, @addr, ASocket.SocketType = stDualStack);
+  if fpconnect(ASocket.FD, @addr, SizeOf(addr)) <> 0 then
+    raise ESocketError.Create(socketerror, 'connect');
 end;
 
 function TCPReceive(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt;

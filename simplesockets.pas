@@ -1,17 +1,18 @@
 unit SimpleSockets;
 
 {$mode ObjFPC}{$H+}
+{$TypedAddress on}
 
 interface
 
 uses
-  SysUtils, Sockets, {$IfDef WINDOWS}WinSock2{$Else}BaseUnix{$EndIf};
+  SysUtils, Sockets;
 
 type
 
   { Basic Socket Types }
 
-  TSocketFD = Sockets.Tsocket;
+  TSocketFD = Tsocket;
   TSocketType = (stIPv4, stIPv6, stDualStack);
   TSocket = record
     FD: TSocketFD;
@@ -126,58 +127,60 @@ type
   _PAddressUnion = ^_TAddressUnion;
   _TAddressUnion = record
   case Boolean of
-  True: (In4Addr: Sockets.sockaddr_in);
-  False: (In6Addr: Sockets.sockaddr_in6);
+  True: (In4Addr: sockaddr_in);
+  False: (In6Addr: sockaddr_in6);
   end;
 
-procedure FillAddr(AAddress: TNetworkAddress; APort: Word; Addr: _PAddressUnion; DualStack: Boolean); inline;
-procedure ReadAddr(Addr: _PAddressUnion; DualStack: Boolean; out AAddress: TNetworkAddress; out APort: Word);
+function CreateAddr(AAddress: TNetworkAddress; APort: Word; DualStack: Boolean): _TAddressUnion; inline;
+procedure ReadAddr(constref Addr: _TAddressUnion; DualStack: Boolean; out AAddress: TNetworkAddress; out APort: Word);
 implementation
+
+uses
+  {$IfDef WINDOWS}WinSock2{$Else}BaseUnix{$EndIf};
 
 const
   IPPROTO_IPV6 = {$IfDef WINDOWS}41{$Else}41{$EndIf};
   IPV6_V6ONLY = {$IfDef WINDOWS}27{$Else}26{$EndIf};
 
-procedure FillAddr(AAddress: TNetworkAddress; APort: Word;
-  Addr: _PAddressUnion; DualStack: Boolean);
+function CreateAddr(AAddress: TNetworkAddress; APort: Word; DualStack: Boolean): _TAddressUnion;
 begin
   if (AAddress.AddressType = atIN4) and DualStack then
     AAddress := IN4MappedIN6Address(AAddress.Address);
   if AAddress.AddressType = atIN4 then
   begin
-    Addr^.In4Addr.sin_family := AF_INET;
-    Addr^.In4Addr.sin_port := HToNS(APort);
-    Addr^.In4Addr.sin_addr.s_addr := LongWord(StrToNetAddr(AAddress.Address));
+    Result.In4Addr.sin_family := AF_INET;
+    Result.In4Addr.sin_port := HToNS(APort);
+    Result.In4Addr.sin_addr.s_addr := LongWord(StrToNetAddr(AAddress.Address));
   end
   else if AAddress.AddressType = atIN6 then
   begin
-    Addr^.In6Addr.sin6_family := AF_INET6;
-    Addr^.In6Addr.sin6_port := HToNS(APort);
-    Addr^.In6Addr.sin6_addr := StrToHostAddr6(AAddress.Address);
-    Addr^.In6Addr.sin6_flowinfo := 0;
-    Addr^.In6Addr.sin6_scope_id := 0;
+    Result.In6Addr.sin6_family := AF_INET6;
+    Result.In6Addr.sin6_port := HToNS(APort);
+    Result.In6Addr.sin6_addr := StrToHostAddr6(AAddress.Address);
+    Result.In6Addr.sin6_flowinfo := 0;
+    Result.In6Addr.sin6_scope_id := 0;
   end
   else
     raise EUnsupportedAddress.Create('Address type ' + ord(AAddress.AddressType).ToString + ' not supported');
 end;
 
-procedure ReadAddr(Addr: _PAddressUnion; DualStack: Boolean; out
+procedure ReadAddr(constref Addr: _TAddressUnion; DualStack: Boolean; out
   AAddress: TNetworkAddress; out APort: Word);
 begin
-  if Addr^.In4Addr.sin_family = AF_INET then
+  if Addr.In4Addr.sin_family = AF_INET then
   begin
-    AAddress := IN4Address(NetAddrToStr(Addr^.In4Addr.sin_addr));
-    APort := NToHs(Addr^.In4Addr.sin_port);
+    AAddress := IN4Address(NetAddrToStr(Addr.In4Addr.sin_addr));
+    APort := NToHs(Addr.In4Addr.sin_port);
   end
-  else if Addr^.In6Addr.sin6_family = AF_INET6 then
+  else if Addr.In6Addr.sin6_family = AF_INET6 then
   begin
-    AAddress := IN6Address(HostAddrToStr6(Addr^.In6Addr.sin6_addr));
+    AAddress := IN6Address(HostAddrToStr6(Addr.In6Addr.sin6_addr));
     if DualStack and IsIPv4Mapped(AAddress.Address) then
       AAddress := ExtractIPv4Address(AAddress);
-    APort := NToHs(Addr^.In6Addr.sin6_port);
+    APort := NToHs(Addr.In6Addr.sin6_port);
   end
   else
-    raise EUnsupportedAddress.Create('Address Family ' + Addr^.In4Addr.sin_family.ToString + ' not supported');
+    raise EUnsupportedAddress.Create('Address Family ' + Addr.In4Addr.sin_family.ToString + ' not supported');
 end;
 
 function SocketInvalid(ASocket: TSocketFD): Boolean; inline;
@@ -321,8 +324,8 @@ procedure Bind(const ASocket: TSocket; const AAddress: TNetworkAddress;
 var
   addr: _TAddressUnion;
 begin
-  FillAddr(AAddress, APort, @addr, ASocket.SocketType = stDualStack);
-  if fpbind(ASocket.FD, @addr, SizeOf(addr)) <> 0 then raise
+  addr := CreateAddr(AAddress, APort, ASocket.SocketType = stDualStack);
+  if fpbind(ASocket.FD, Sockets.PSockAddr(@addr), SizeOf(addr)) <> 0 then raise
     ESocketError.Create(socketerror, 'bind (%s:%d)'.Format([AAddress.Address, APort]));
 end;
 
@@ -337,11 +340,11 @@ var
   addr: _TAddressUnion;
   addrLen: SizeInt = SizeOf(addr);
 begin
-  Result.Socket.FD := fpaccept(ASocket.FD, @addr, @addrLen);
+  Result.Socket.FD := fpaccept(ASocket.FD, Sockets.psockaddr(@addr), @addrLen);
   if SocketInvalid(Result.Socket.FD) then
     raise ESocketError.Create(socketerror, 'accept');
   Result.Socket.SocketType := ASocket.SocketType;
-  ReadAddr(@addr, ASocket.SocketType = stDualStack, Result.ClientAddress, Result.ClientPort);
+  ReadAddr(addr, ASocket.SocketType = stDualStack, Result.ClientAddress, Result.ClientPort);
 end;
 
 procedure TCPClientConnect(const ASocket: TSocket;
@@ -349,8 +352,8 @@ procedure TCPClientConnect(const ASocket: TSocket;
 var
   addr: _TAddressUnion;
 begin
-  FillAddr(AAddress, APort, @addr, ASocket.SocketType = stDualStack);
-  if fpconnect(ASocket.FD, @addr, SizeOf(addr)) <> 0 then
+  addr := CreateAddr(AAddress, APort, ASocket.SocketType = stDualStack);
+  if fpconnect(ASocket.FD, Sockets.psockaddr(@addr), SizeOf(addr)) <> 0 then
     raise ESocketError.Create(socketerror, 'connect');
 end;
 
@@ -367,33 +370,14 @@ end;
 function UDPReceive(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt;
   AFlags: Integer): TUDPResult;
 var
-  {$IfNDef WINDOWS}
-  _addr: _TAddressUnion;
-  _addrLen: SizeInt;
-  {$EndIf}
-  addr: _PAddressUnion;
-  addrLen: PSizeInt;
+  addr: _TAddressUnion;
+  addrLen: SizeInt;
 begin
-  {$IfDef WINDOWS}
-  // WinSock doesn't like the addr located on the stack, therefore we create a heap instance for it
-  New(addr);
-  New(addrLen);
-  try
-  {$Else}
-  addr := @_addr;
-  addrLen := @_addrLen;
-  {$EndIf}
-  addrLen^ := SizeOf(_TAddressUnion);
-  Result.DataSize := fprecvfrom(ASocket.FD, ABuffer, MaxSize, AFlags, Sockets.PSockAddr(addr), addrLen);
+  addrLen := SizeOf(_TAddressUnion);
+  Result.DataSize := fprecvfrom(ASocket.FD, ABuffer, MaxSize, AFlags, Sockets.PSockAddr(@addr), @addrLen);
   if Result.DataSize < 0 then
     raise ESocketError.Create(socketerror, 'recvfrom');
   ReadAddr(addr, ASocket.SocketType = stDualStack, Result.FromAddr, Result.FromPort);
-  {$IfDef WINDOWS}
-  finally
-    Dispose(addr);
-    Dispose(addrLen);
-  end;
-  {$EndIf}
 end;
 
 function TCPSend(const ASocket: TSocket; ABuffer: Pointer; ASize: SizeInt;
@@ -410,8 +394,8 @@ function UDPSend(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress;
 var
   addr: _TAddressUnion;
 begin
-  FillAddr(ReceiverAddr, ReceiverPort, @addr, ASocket.SocketType = stDualStack);
-  Result := fpsendto(ASocket.FD, ABuffer, ASize, AFlags, @addr, SizeOf(addr));
+  addr := CreateAddr(ReceiverAddr, ReceiverPort, ASocket.SocketType = stDualStack);
+  Result := fpsendto(ASocket.FD, ABuffer, ASize, AFlags, Sockets.psockaddr(@addr), SizeOf(addr));
   if Result < 0 then
     raise ESocketError.Create(socketerror, 'sendto');
 end;

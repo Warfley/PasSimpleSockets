@@ -8,7 +8,6 @@
         <MainUnitHasCreateFormStatements Value="False"/>
         <MainUnitHasTitleStatement Value="False"/>
         <MainUnitHasScaledStatement Value="False"/>
-        <UseDefaultCompilerOptions Value="True"/>
       </Flags>
       <SessionStorage Value="InProjectDir"/>
       <Title Value="udpechoserver"/>
@@ -34,6 +33,7 @@
       <Unit>
         <Filename Value="..\simplesockets.pas"/>
         <IsPartOfProject Value="True"/>
+        <UnitName Value="SimpleSockets"/>
       </Unit>
     </Units>
   </ProjectOptions>

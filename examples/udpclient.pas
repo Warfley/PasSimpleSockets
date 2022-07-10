@@ -7,12 +7,12 @@ uses
 
 var
   Sock: TSocket;
-  Msg: TUDPStringMessage;
+  Msg: TReceiveFromStringMessage;
 begin
   Sock := UDPSocket(stIPv4);
   try
-    UDPSendStr(Sock, '127.0.0.1', 1337, 'Hello UDP');
-    Msg := UDPReceiveStr(Sock);
+    SendStrTo(Sock, '127.0.0.1', 1337, 'Hello UDP');
+    Msg := ReceiveStrFrom(Sock);
     WriteLn('Server at ', Msg.FromAddr.Address, ':', Msg.FromPort, ' answered: ', Msg.Data);
   finally
     CloseSocket(Sock);

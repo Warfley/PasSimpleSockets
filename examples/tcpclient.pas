@@ -11,9 +11,9 @@ var
 begin
   sock := TCPSocket(stIPv6);
   try
-    TCPClientConnect(Sock, '::1', 1337);
-    TCPSendStr(Sock, 'Hello Server');
-    Msg := TCPReceiveStr(Sock, 32);
+    Connect(Sock, '::1', 1337);
+    SendStr(Sock, 'Hello Server');
+    Msg := ReceiveStr(Sock, 32);
     WriteLn('Server answered: ', Msg);
   finally
     CloseSocket(Sock);

@@ -5,26 +5,26 @@ program tcpechoserver;
 uses
   SimpleSockets;
 
-procedure HandleConnection(Connection: TTCPConnection);
+procedure HandleConnection(Connection: TSocketConnection);
 var
   Msg: String;
 begin
   WriteLn('Connection from: ', Connection.ClientAddress.Address, ':', Connection.ClientPort);
-  Msg := TCPReceiveStr(Connection.Socket, 1024);
+  Msg := ReceiveStr(Connection.Socket, 1024);
   WriteLn('Received: ', Msg);
-  TCPSendStr(Connection.Socket, Msg);
+  SendStr(Connection.Socket, Msg);
 end;
 
 var
   ServerSock: TSocket;
-  Conn: TTCPConnection;
+  Conn: TSocketConnection;
 begin
   ServerSock := TCPSocket(stDualStack);
   try
      // bind to any addr (ipv6 addr 0) should allow any ipv6 and ipv4 connection due to dualstack
      Bind(ServerSock, '::0', 1337);
-     TCPServerListen(ServerSock, 1);
-     Conn := TCPServerAccept(ServerSock);
+     Listen(ServerSock, 1);
+     Conn := AcceptConnection(ServerSock);
      try
        HandleConnection(Conn);
      finally

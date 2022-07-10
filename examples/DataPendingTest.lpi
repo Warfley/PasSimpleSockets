@@ -10,7 +10,7 @@
         <MainUnitHasScaledStatement Value="False"/>
       </Flags>
       <SessionStorage Value="InProjectDir"/>
-      <Title Value="tcpechoserver"/>
+      <Title Value="DataPendingTest"/>
       <UseAppBundle Value="False"/>
       <ResourceType Value="res"/>
     </General>
@@ -26,12 +26,13 @@
     </RunParams>
     <Units>
       <Unit>
-        <Filename Value="tcpechoserver.pas"/>
+        <Filename Value="DataPendingTest.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="..\simplesockets.pas"/>
         <IsPartOfProject Value="True"/>
+        <UnitName Value="SimpleSockets"/>
       </Unit>
     </Units>
   </ProjectOptions>
@@ -39,9 +40,10 @@
     <Version Value="11"/>
     <PathDelim Value="\"/>
     <Target>
-      <Filename Value="tcpechoserver"/>
+      <Filename Value="DataPendingTest"/>
     </Target>
     <SearchPaths>
+      <IncludeFiles Value="$(ProjOutDir)"/>
       <OtherUnitFiles Value=".."/>
       <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>

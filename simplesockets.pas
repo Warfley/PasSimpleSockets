@@ -19,33 +19,35 @@ type
     SocketType: TSocketType;
   end;
 
+  TSocketArray = Array of TSocket;
+
   TAddressType = (atIN4, atIN6);
   TNetworkAddress = record
     Address: String;
     AddressType: TAddressType;
   end;
 
-  TTCPConnection = record
+  TSocketConnection = record
     ClientAddress: TNetworkAddress;
     ClientPort: Word;
     Socket: TSocket;
   end;
 
-  { UDP Return Types }
+  { ReceiveFrom Return Types }
 
-  TUDPResult = record
+  TReceiveFromResult = record
     FromAddr: TNetworkAddress;
     FromPort: Word;
     DataSize: SizeInt;
   end;
 
-  generic TUDPDataMessage<T> = record
+  generic TReceiveFromMessage<T> = record
     FromAddr: TNetworkAddress;
     FromPort: Word;
     Data: T;
   end;
 
-  TUDPStringMessage = specialize TUDPDataMessage<String>;
+  TReceiveFromStringMessage = specialize TReceiveFromMessage<String>;
 
   { Exceptions }
 
@@ -92,33 +94,36 @@ procedure CloseSocket(const ASocket: TSocket); inline;
 
 procedure Bind(const ASocket: TSocket; const AAddress: TNetworkAddress; APort: Word);
 
-procedure TCPServerListen(const ASocket: TSocket; Backlog: Integer); inline;
-function TCPServerAccept(const ASocket: TSocket): TTCPConnection; inline;
-procedure TCPClientConnect(const ASocket: TSocket; const AAddress: TNetworkAddress; APort: Word); inline;
+procedure Listen(const ASocket: TSocket; Backlog: Integer); inline;
+function AcceptConnection(const ASocket: TSocket): TSocketConnection; inline;
 
-function TCPReceive(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
-function UDPReceive(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt; AFlags: Integer = 0): TUDPResult;
-function TCPSend(const ASocket: TSocket; ABuffer: Pointer; ASize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
-function UDPSend(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress;
+procedure Connect(const ASocket: TSocket; const AAddress: TNetworkAddress; APort: Word); inline;
+
+function Receive(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
+function ReceiveFrom(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt; AFlags: Integer = 0): TReceiveFromResult;
+function Send(const ASocket: TSocket; ABuffer: Pointer; ASize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
+function SendTo(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress;
                   ReceiverPort: Word; ABuffer: Pointer; ASize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
 
-function TCPReceiveStr(const ASocket: TSocket; MaxLength: SizeInt; AFlags: Integer = 0): String; inline;
-function UDPReceiveStr(const ASocket: TSocket; MaxLength: SizeInt = MaxUDPPackageSize; AFlags: Integer = 0): TUDPStringMessage; inline;
-function TCPSendStr(const ASocket: TSocket; const AData: String; AFlags: Integer = 0): SizeInt; inline;
-function UDPSendStr(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: String; AFlags: Integer = 0): SizeInt; inline;
+function ReceiveStr(const ASocket: TSocket; MaxLength: SizeInt; AFlags: Integer = 0): String; inline;
+function ReceiveStrFrom(const ASocket: TSocket; MaxLength: SizeInt = MaxUDPPackageSize; AFlags: Integer = 0): TReceiveFromStringMessage; inline;
+function SendStr(const ASocket: TSocket; const AData: String; AFlags: Integer = 0): SizeInt; inline;
+function SendStrTo(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: String; AFlags: Integer = 0): SizeInt; inline;
  
-generic function TCPReceive<T>(const ASocket: TSocket; AFlags: Integer = 0): T; inline;
-generic function UDPReceive<T>(const ASocket: TSocket; AFlags: Integer = 0): specialize TUDPDataMessage<T>; inline;
-generic function TCPSend<T>(const ASocket: TSocket; constref AData: T; AFlags: Integer = 0): SizeInt; inline;
-generic function UDPSend<T>(const ASocket: TSocket; constref ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: T; AFlags: Integer = 0): SizeInt; inline;
+generic function Receive<T>(const ASocket: TSocket; AFlags: Integer = 0): T; inline;
+generic function ReceiveFrom<T>(const ASocket: TSocket; AFlags: Integer = 0): specialize TReceiveFromMessage<T>; inline;
+generic function Send<T>(const ASocket: TSocket; constref AData: T; AFlags: Integer = 0): SizeInt; inline;
+generic function SendTo<T>(const ASocket: TSocket; constref ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: T; AFlags: Integer = 0): SizeInt; inline;
 
-generic function TCPReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TArray<T>; inline;
-generic function UDPReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TUDPDataMessage<specialize TArray<T>>; inline;
-generic function TCPSendArray<T>(const ASocket: TSocket; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt; inline;
-generic function UDPSendArray<T>(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt; inline;
+generic function ReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TArray<T>; inline;
+generic function ReceiveArrayFrom<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TReceiveFromMessage<specialize TArray<T>>; inline;
+generic function SendArray<T>(const ASocket: TSocket; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt; inline;
+generic function SendArrayTo<T>(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt; inline;
 
 // Timeout in MS
-function DataPending(const ASocket: TSocket; TimeOut: Integer = 0): Boolean;
+function DataAvailable(const SocketArray: TSocketArray; TimeOut: Integer = 0): TSocketArray; overload;
+function DataAvailable(const ASocket: TSocket; TimeOut: Integer = 0): Boolean; overload; //inline;
+function DataAvailable(const SocketArray: array of TSocket; TimeOut: Integer = 0): TSocketArray; overload; inline;
 
 { Helper }
 // Must be in interface because of generic functions
@@ -136,7 +141,7 @@ procedure ReadAddr(constref Addr: _TAddressUnion; DualStack: Boolean; out AAddre
 implementation
 
 uses
-  {$IfDef WINDOWS}WinSock2{$Else}BaseUnix{$EndIf};
+  {$IfDef WINDOWS}WinSock2{$Else}BaseUnix{$EndIf}, Math;
 
 const
   IPPROTO_IPV6 = {$IfDef WINDOWS}41{$Else}41{$EndIf};
@@ -329,13 +334,13 @@ begin
     ESocketError.Create(socketerror, 'bind (%s:%d)'.Format([AAddress.Address, APort]));
 end;
 
-procedure TCPServerListen(const ASocket: TSocket; Backlog: Integer);
+procedure Listen(const ASocket: TSocket; Backlog: Integer);
 begin
   if fplisten(ASocket.FD, Backlog) <> 0 then raise
     ESocketError.Create(socketerror, 'listen');
 end;
 
-function TCPServerAccept(const ASocket: TSocket): TTCPConnection;
+function AcceptConnection(const ASocket: TSocket): TSocketConnection;
 var
   addr: _TAddressUnion;
   addrLen: SizeInt = SizeOf(addr);
@@ -347,7 +352,7 @@ begin
   ReadAddr(addr, ASocket.SocketType = stDualStack, Result.ClientAddress, Result.ClientPort);
 end;
 
-procedure TCPClientConnect(const ASocket: TSocket;
+procedure Connect(const ASocket: TSocket;
   const AAddress: TNetworkAddress; APort: Word);
 var
   addr: _TAddressUnion;
@@ -357,7 +362,7 @@ begin
     raise ESocketError.Create(socketerror, 'connect');
 end;
 
-function TCPReceive(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt;
+function Receive(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt;
   AFlags: Integer): SizeInt;
 begin
   Result := fprecv(ASocket.FD, ABuffer, MaxSize, AFlags);
@@ -367,8 +372,8 @@ begin
     raise ESocketError.Create(socketerror, 'recv');
 end;
 
-function UDPReceive(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt;
-  AFlags: Integer): TUDPResult;
+function ReceiveFrom(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt;
+  AFlags: Integer): TReceiveFromResult;
 var
   addr: _TAddressUnion;
   addrLen: SizeInt;
@@ -380,7 +385,7 @@ begin
   ReadAddr(addr, ASocket.SocketType = stDualStack, Result.FromAddr, Result.FromPort);
 end;
 
-function TCPSend(const ASocket: TSocket; ABuffer: Pointer; ASize: SizeInt;
+function Send(const ASocket: TSocket; ABuffer: Pointer; ASize: SizeInt;
   AFlags: Integer): SizeInt;
 begin
   Result := fpsend(ASocket.FD, ABuffer, ASize, AFlags);
@@ -388,7 +393,7 @@ begin
     raise ESocketError.Create(socketerror, 'send');
 end;
 
-function UDPSend(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress;
+function SendTo(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress;
   ReceiverPort: Word; ABuffer: Pointer; ASize: SizeInt; AFlags: Integer
   ): SizeInt;
 var
@@ -400,78 +405,78 @@ begin
     raise ESocketError.Create(socketerror, 'sendto');
 end;
 
-function TCPReceiveStr(const ASocket: TSocket; MaxLength: SizeInt;
+function ReceiveStr(const ASocket: TSocket; MaxLength: SizeInt;
   AFlags: Integer): String;
 var
   Len: SizeInt;
 begin
   Result := '';
   SetLength(Result, MaxLength);
-  Len := TCPReceive(ASocket, @Result[1], MaxLength, AFlags);
+  Len := Receive(ASocket, @Result[1], MaxLength, AFlags);
   SetLength(Result, Len);
 end;
 
-function UDPReceiveStr(const ASocket: TSocket; MaxLength: SizeInt;
-  AFlags: Integer): TUDPStringMessage;
+function ReceiveStrFrom(const ASocket: TSocket; MaxLength: SizeInt;
+  AFlags: Integer): TReceiveFromStringMessage;
 var
-  UdpMessage: TUDPResult;
+  UdpMessage: TReceiveFromResult;
 begin
-  Result := Default(specialize TUDPDataMessage<String>);
+  Result := Default(specialize TReceiveFromMessage<String>);
   SetLength(Result.Data, MaxLength);
-  UdpMessage := UDPReceive(ASocket, @Result.Data[1], MaxLength, AFlags);
+  UdpMessage := ReceiveFrom(ASocket, @Result.Data[1], MaxLength, AFlags);
   SetLength(Result.Data, UdpMessage.DataSize);
   Result.FromAddr := UdpMessage.FromAddr;
   Result.FromPort := UdpMessage.FromPort;
 end;
 
-function TCPSendStr(const ASocket: TSocket; const AData: String; AFlags: Integer
+function SendStr(const ASocket: TSocket; const AData: String; AFlags: Integer
   ): SizeInt;
 begin
   if Length(AData) = 0 then Exit(0);
-  Result := TCPSend(ASocket, @AData[1], Length(AData), AFlags);
+  Result := Send(ASocket, @AData[1], Length(AData), AFlags);
 end;
 
-function UDPSendStr(const ASocket: TSocket;
+function SendStrTo(const ASocket: TSocket;
   const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: String; AFlags: Integer
   ): SizeInt;
 begin
   if Length(AData) = 0 then Exit(0);
-  Result := UDPSend(ASocket, ReceiverAddr, ReceiverPort, @AData[1], Length(AData), AFlags);
+  Result := SendTo(ASocket, ReceiverAddr, ReceiverPort, @AData[1], Length(AData), AFlags);
 end;
 
-generic function TCPReceive<T>(const ASocket: TSocket; AFlags: Integer = 0): T;
+generic function Receive<T>(const ASocket: TSocket; AFlags: Integer = 0): T;
 var
   Len: SizeInt;
 begin
   Result := Default(T);
   Len := 0;
   while Len < SizeOf(Result) do
-    Len += TCPReceive(ASocket, @PByte(@Result)[Len], SizeOf(Result) - Len, AFlags);
+    Len += Receive(ASocket, @PByte(@Result)[Len], SizeOf(Result) - Len, AFlags);
 end;
 
-generic function UDPReceive<T>(const ASocket: TSocket; AFlags: Integer = 0): specialize TUDPDataMessage<T>;
+generic function ReceiveFrom<T>(const ASocket: TSocket; AFlags: Integer = 0): specialize TReceiveFromMessage<T>;
 var
-  UdpMessage: TUDPResult;
+  UdpMessage: TReceiveFromResult;
 begin
   Result := Default(T);
-  UdpMessage := UDPReceive(ASocket, @Result, SizeOf(Result), AFlags);
+  UdpMessage := ReceiveFrom(ASocket, @Result, SizeOf(Result), AFlags);
   if UdpMessage.DataSize < SizeOf(T) then
     raise EUDPFragmentationException.Create('Receiving of fragmented data is not supported by typed receive');
   Result.FromAddr := UdpMessage.FromAddr;
   Result.FromPort := UdpMessage.FromPort;
 end;
 
-generic function TCPSend<T>(const ASocket: TSocket; constref AData: T; AFlags: Integer = 0): SizeInt;
+generic function Send<T>(const ASocket: TSocket; constref AData: T; AFlags: Integer = 0): SizeInt;
 begin
-  Result := TCPSend(ASocket, @AData, SizeOf(T), AFlags);
+  Result := Send(ASocket, @AData, SizeOf(T), AFlags);
 end;
 
-generic function UDPSend<T>(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; constref AData: T; AFlags: Integer = 0): SizeInt;
+generic function SendTo<T>(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; constref AData: T; AFlags: Integer = 0): SizeInt;
 begin
-  Result := UDPSend(ASocket, ReceiverAddr, ReceiverPort, @AData, SizeOf(T), AFlags);
+  Result := SendTo(ASocket, ReceiverAddr, ReceiverPort, @AData, SizeOf(T), AFlags);
 end;
 
-generic function TCPReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TArray<T>;
+generic function ReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TArray<T>;
 var
   Len: SizeInt;
 begin     
@@ -479,18 +484,18 @@ begin
   SetLength(Result, MaxCount);
   Len := 0;
   repeat
-    Len += TCPReceive(ASocket, @PByte(@Result)[Len], MaxCount * SizeOf(T) - Len, AFlags);
+    Len += Receive(ASocket, @PByte(@Result)[Len], MaxCount * SizeOf(T) - Len, AFlags);
   until (Len mod SizeOf(T)) = 0;
   SetLength(Result, Len div SizeOf(T));
 end;
 
-generic function UDPReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TUDPDataMessage<specialize TArray<T>>;
+generic function ReceiveArrayFrom<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TReceiveFromMessage<specialize TArray<T>>;
 var
-  UdpMessage: TUDPResult;
+  UdpMessage: TReceiveFromResult;
 begin
   Result.Data := nil;
   SetLength(Result.Data, MaxCount);
-  UdpMessage := UDPReceive(ASocket, @Result.Data[0], MaxCount * SizeOf(T), AFlags);
+  UdpMessage := ReceiveFrom(ASocket, @Result.Data[0], MaxCount * SizeOf(T), AFlags);
   if UdpMessage.DataSize mod SizeOf(T) > 0 then
     raise EUDPFragmentationException.Create('Receiving of fragmented data is not supported by typed receive');
   SetLength(Result.Data, UdpMessage.DataSize div SizeOf(T)); 
@@ -498,32 +503,68 @@ begin
   Result.FromPort := UdpMessage.FromPort;
 end;
 
-generic function TCPSendArray<T>(const ASocket: TSocket; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt;
+generic function SendArray<T>(const ASocket: TSocket; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt;
 begin
   if Length(AData) = 0 then Exit(0);
-  Result := TCPSend(ASocket, @AData[0], Length(AData) * SizeOf(T), AFlags);
+  Result := Send(ASocket, @AData[0], Length(AData) * SizeOf(T), AFlags);
 end;
 
-generic function UDPSendArray<T>(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt;
+generic function SendArrayTo<T>(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt;
 begin
   if Length(AData) = 0 then Exit(0);
-  Result := UDPSend(ASocket, ReceiverAddr, ReceiverPort, @AData[0], Length(AData) * SizeOf(T), AFlags);
+  Result := SendTo(ASocket, ReceiverAddr, ReceiverPort, @AData[0], Length(AData) * SizeOf(T), AFlags);
 end;
 
-function DataPending(const ASocket: TSocket; TimeOut: Integer): Boolean;
+function DataAvailable(const SocketArray: TSocketArray; TimeOut: Integer
+  ): TSocketArray;
 var
   FDSet: TFDSet;
+  MaxSock: TSocketFD;
   timeval: TTimeVal;
   Ret: LongInt;
+  i, WriteHead: Integer;
 begin
+  Result := nil;
+  MaxSock := 0;
   {$IfDef UNIX}fp{$endif}FD_ZERO(FDSet);
-  {$IfDef UNIX}fp{$endif}FD_SET(ASocket.FD, FDSet);
+  for i:=0 to Length(SocketArray) - 1 do
+  begin
+    MaxSock := Max(MaxSock, SocketArray[i].FD);
+    {$IfDef UNIX}fp{$endif}FD_SET(SocketArray[i].FD, FDSet);
+  end;
   timeval.tv_sec := TimeOut div 1000;
   timeval.tv_usec := (TimeOut mod 1000) * 1000;
-  Ret := {$IfDef UNIX}fp{$endif}select(ASocket.FD, @FDSet, nil, nil, @timeval);
+  Ret := {$IfDef UNIX}fp{$endif}select(MaxSock + 1, @FDSet, nil, nil, @timeval);
   if Ret < 0 then
     raise ESocketError.Create(socketerror, 'select');
-  Result := Ret > 0;
+
+  SetLength(Result, Ret);
+  WriteHead := 0;
+  for i:=0 to Length(SocketArray) - 1 do
+    if FD_ISSET(SocketArray[i].FD, FDSet) then
+    begin
+      Result[WriteHead] := SocketArray[i];
+      Inc(WriteHead);
+    end;
+end;
+
+function DataAvailable(const ASocket: TSocket; TimeOut: Integer): Boolean;
+var
+  Arr: TSocketArray;
+begin
+  Arr := [ASocket];
+  Result := Length(DataAvailable(Arr, TimeOut)) > 0;
+end;
+
+function DataAvailable(const SocketArray: array of TSocket; TimeOut: Integer
+  ): TSocketArray;
+var
+  Arr: TSocketArray;
+begin
+  if Length(SocketArray) = 0 then Exit(nil);
+  SetLength(Arr, Length(SocketArray));
+  Move(SocketArray[0], Arr[0], Length(SocketArray) * SizeOf(SocketArray[0]));
+  Result := DataAvailable(arr, TimeOut);
 end;
 
 { ESocketError }

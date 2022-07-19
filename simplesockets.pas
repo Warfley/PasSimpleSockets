@@ -92,7 +92,7 @@ function UDPSocket(AType: TSocketType): TSocket; inline;
 
 procedure CloseSocket(const ASocket: TSocket); inline;
 
-procedure Bind(const ASocket: TSocket; const AAddress: TNetworkAddress; APort: Word);
+procedure Bind(const ASocket: TSocket; const AAddress: TNetworkAddress; APort: Word; ReuseAddr: Boolean = True);
 
 procedure Listen(const ASocket: TSocket; Backlog: Integer); inline;
 function AcceptConnection(const ASocket: TSocket): TSocketConnection; inline;
@@ -325,10 +325,13 @@ begin
 end;
 
 procedure Bind(const ASocket: TSocket; const AAddress: TNetworkAddress;
-  APort: Word);
+  APort: Word; ReuseAddr: Boolean);
 var
+  enableReuse: Integer = 1;
   addr: _TAddressUnion;
 begin
+  if ReuseAddr then
+    fpsetsockopt(ASocket.FD, SOL_SOCKET, SO_REUSEADDR, @enableReuse, SizeOf(enableReuse));
   addr := CreateAddr(AAddress, APort, ASocket.SocketType = stDualStack);
   if fpbind(ASocket.FD, Sockets.PSockAddr(@addr), SizeOf(addr)) <> 0 then raise
     ESocketError.Create(socketerror, 'bind (%s:%d)'.Format([AAddress.Address, APort]));

@@ -544,7 +544,7 @@ begin
   SetLength(Result, Ret);
   WriteHead := 0;
   for i:=0 to Length(SocketArray) - 1 do
-    if {$IfDef UNIX}fpFD_ISSET{$else}FD_ISSET{$endif}(SocketArray[i].FD, FDSet) > 0 then
+    if {$IfDef UNIX}fpFD_ISSET{$else}FD_ISSET{$endif}(SocketArray[i].FD, FDSet) {$Ifdef Unix}> 0{$Endif} then
     begin
       Result[WriteHead] := SocketArray[i];
       Inc(WriteHead);

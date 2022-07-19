@@ -346,7 +346,7 @@ end;
 function AcceptConnection(const ASocket: TSocket): TSocketConnection;
 var
   addr: _TAddressUnion;
-  addrLen: SizeInt = SizeOf(addr);
+  addrLen: TSocklen = SizeOf(addr);
 begin
   Result.Socket.FD := fpaccept(ASocket.FD, Sockets.psockaddr(@addr), @addrLen);
   if SocketInvalid(Result.Socket.FD) then
@@ -379,7 +379,7 @@ function ReceiveFrom(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt;
   AFlags: Integer): TReceiveFromResult;
 var
   addr: _TAddressUnion;
-  addrLen: SizeInt;
+  addrLen: TSocklen;
 begin
   addrLen := SizeOf(_TAddressUnion);
   Result.DataSize := fprecvfrom(ASocket.FD, ABuffer, MaxSize, AFlags, Sockets.PSockAddr(@addr), @addrLen);
@@ -529,22 +529,22 @@ var
 begin
   Result := nil;
   MaxSock := 0;
-  {$IfDef UNIX}fp{$endif}FD_ZERO(FDSet);
+  {$IfDef UNIX}fpFD_ZERO{$else}FD_ZERO{$endif}(FDSet);
   for i:=0 to Length(SocketArray) - 1 do
   begin
     MaxSock := Max(MaxSock, SocketArray[i].FD);
-    {$IfDef UNIX}fp{$endif}FD_SET(SocketArray[i].FD, FDSet);
+    {$IfDef UNIX}fpFD_SET{$else}FD_SET{$endif}(SocketArray[i].FD, FDSet);
   end;
   timeval.tv_sec := TimeOut div 1000;
   timeval.tv_usec := (TimeOut mod 1000) * 1000;
-  Ret := {$IfDef UNIX}fp{$endif}select(MaxSock + 1, @FDSet, nil, nil, @timeval);
+  Ret := {$IfDef UNIX}fpselect{$else}select{$endif}(MaxSock + 1, @FDSet, nil, nil, @timeval);
   if Ret < 0 then
     raise ESocketError.Create(socketerror, 'select');
 
   SetLength(Result, Ret);
   WriteHead := 0;
   for i:=0 to Length(SocketArray) - 1 do
-    if FD_ISSET(SocketArray[i].FD, FDSet) then
+    if {$IfDef UNIX}fpFD_ISSET{$else}FD_ISSET{$endif}(SocketArray[i].FD, FDSet) > 0 then
     begin
       Result[WriteHead] := SocketArray[i];
       Inc(WriteHead);

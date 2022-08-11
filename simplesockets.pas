@@ -105,7 +105,7 @@ function Send(const ASocket: TSocket; ABuffer: Pointer; ASize: SizeInt; AFlags: 
 function SendTo(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress;
                   ReceiverPort: Word; ABuffer: Pointer; ASize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
 
-function ReceiveStr(const ASocket: TSocket; MaxLength: SizeInt; AFlags: Integer = 0): String; inline;
+function ReceiveStr(const ASocket: TSocket; MaxLength: SizeInt = -1; AFlags: Integer = 0): String; inline;
 function ReceiveStrFrom(const ASocket: TSocket; MaxLength: SizeInt = MaxUDPPackageSize; AFlags: Integer = 0): TReceiveFromStringMessage; inline;
 function SendStr(const ASocket: TSocket; const AData: String; AFlags: Integer = 0): SizeInt; inline;
 function SendStrTo(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: String; AFlags: Integer = 0): SizeInt; inline;
@@ -115,8 +115,8 @@ generic function ReceiveFrom<T>(const ASocket: TSocket; AFlags: Integer = 0): sp
 generic function Send<T>(const ASocket: TSocket; constref AData: T; AFlags: Integer = 0): SizeInt; inline;
 generic function SendTo<T>(const ASocket: TSocket; constref ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: T; AFlags: Integer = 0): SizeInt; inline;
 
-generic function ReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TArray<T>; inline;
-generic function ReceiveArrayFrom<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TReceiveFromMessage<specialize TArray<T>>; inline;
+generic function ReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt = -1; AFlags: Integer = 0): specialize TArray<T>; inline;
+generic function ReceiveArrayFrom<T>(const ASocket: TSocket; MaxCount: SizeInt = -1; AFlags: Integer = 0): specialize TReceiveFromMessage<specialize TArray<T>>; inline;
 generic function SendArray<T>(const ASocket: TSocket; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt; inline;
 generic function SendArrayTo<T>(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt; inline;
 
@@ -124,6 +124,8 @@ generic function SendArrayTo<T>(const ASocket: TSocket; const ReceiverAddr: TNet
 function DataAvailable(const SocketArray: TSocketArray; TimeOut: Integer = 0): TSocketArray; overload;
 function DataAvailable(const ASocket: TSocket; TimeOut: Integer = 0): Boolean; overload; //inline;
 function DataAvailable(const SocketArray: array of TSocket; TimeOut: Integer = 0): TSocketArray; overload; inline;
+
+function BytesAvailable(const ASocket: TSocket): SizeInt;
 
 { Helper }
 // Must be in interface because of generic functions
@@ -413,6 +415,8 @@ function ReceiveStr(const ASocket: TSocket; MaxLength: SizeInt;
 var
   Len: SizeInt;
 begin
+  if MaxLength < 0 then
+    MaxLength := BytesAvailable(ASocket);
   Result := '';
   SetLength(Result, MaxLength);
   Len := Receive(ASocket, @Result[1], MaxLength, AFlags);
@@ -482,7 +486,9 @@ end;
 generic function ReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TArray<T>;
 var
   Len: SizeInt;
-begin     
+begin
+  if MaxCount < 0 then
+    MaxCount := BytesAvailable(ASocket) div SizeOf(T);
   Result := nil;
   SetLength(Result, MaxCount);
   Len := 0;
@@ -496,6 +502,8 @@ generic function ReceiveArrayFrom<T>(const ASocket: TSocket; MaxCount: SizeInt; 
 var
   UdpMessage: TReceiveFromResult;
 begin
+  if MaxCount < 0 then
+    MaxCount := MaxUDPPackageSize div SizeOf(T);
   Result.Data := nil;
   SetLength(Result.Data, MaxCount);
   UdpMessage := ReceiveFrom(ASocket, @Result.Data[0], MaxCount * SizeOf(T), AFlags);
@@ -568,6 +576,15 @@ begin
   SetLength(Arr, Length(SocketArray));
   Move(SocketArray[0], Arr[0], Length(SocketArray) * SizeOf(SocketArray[0]));
   Result := DataAvailable(arr, TimeOut);
+end;
+
+function BytesAvailable(const ASocket: TSocket): SizeInt;
+var
+  count: DWord;
+begin
+  Result := -1;
+  if ioctlsocket(ASocket.FD, FIONREAD, @count) = 0 then
+    Result := Count;
 end;
 
 { ESocketError }

@@ -3,16 +3,19 @@ program tcpechoserver;
 {$mode objfpc}{$H+}
 
 uses
-  SimpleSockets;
+  SysUtils, SimpleSockets;
 
 procedure HandleConnection(Connection: TSocketConnection);
 var
   Msg: String;
 begin
   WriteLn('Connection from: ', Connection.ClientAddress.Address, ':', Connection.ClientPort);
+  While True do begin
   Msg := ReceiveStr(Connection.Socket, 1024);
   WriteLn('Received: ', Msg);
-  SendStr(Connection.Socket, Msg);
+  sleep(2500);
+  SendStr(Connection.Socket, 'Pong');
+  end;
 end;
 
 var

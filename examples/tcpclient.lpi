@@ -32,6 +32,7 @@
       <Unit>
         <Filename Value="..\simplesockets.pas"/>
         <IsPartOfProject Value="True"/>
+        <UnitName Value="SimpleSockets"/>
       </Unit>
     </Units>
   </ProjectOptions>

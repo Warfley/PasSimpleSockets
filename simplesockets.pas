@@ -73,57 +73,57 @@ const
 
   { Address Management }
 
-function IN4Address(const Address: String): TNetworkAddress; inline;
-function IN6Address(const Address: String): TNetworkAddress; inline;
-function IN4MappedIN6Address(const In4Address: String): TNetworkAddress; inline;
-function INAddr(const Address: String): TNetworkAddress; inline;
+function IN4Address(const Address: String): TNetworkAddress;
+function IN6Address(const Address: String): TNetworkAddress;
+function IN4MappedIN6Address(const In4Address: String): TNetworkAddress;
+function INAddr(const Address: String): TNetworkAddress;
 
-function IsIPv4Mapped(const IPv6Addr: TNetworkAddress): Boolean; inline;
-function ExtractIPv4Address(const IPv6Addr: TNetworkAddress): TNetworkAddress; inline;
+function IsIPv4Mapped(const IPv6Addr: TNetworkAddress): Boolean;
+function ExtractIPv4Address(const IPv6Addr: TNetworkAddress): TNetworkAddress;
 
 function IN6Equal(const A, B: String): Boolean;
-operator =(const A, B: TNetworkAddress): Boolean; inline;
-operator :=(const AStr: String): TNetworkAddress; inline;
+operator =(const A, B: TNetworkAddress): Boolean;
+operator :=(const AStr: String): TNetworkAddress;
 
   { Socket Functions }
 
-function TCPSocket(AType: TSocketType): TSocket; inline;
-function UDPSocket(AType: TSocketType): TSocket; inline;
+function TCPSocket(AType: TSocketType): TSocket;
+function UDPSocket(AType: TSocketType): TSocket;
 
-procedure CloseSocket(const ASocket: TSocket); inline;
+procedure CloseSocket(const ASocket: TSocket);
 
 procedure Bind(const ASocket: TSocket; const AAddress: TNetworkAddress; APort: Word; ReuseAddr: Boolean = True);
 
-procedure Listen(const ASocket: TSocket; Backlog: Integer); inline;
-function AcceptConnection(const ASocket: TSocket): TSocketConnection; inline;
+procedure Listen(const ASocket: TSocket; Backlog: Integer);
+function AcceptConnection(const ASocket: TSocket): TSocketConnection;
 
-procedure Connect(const ASocket: TSocket; const AAddress: TNetworkAddress; APort: Word); inline;
+procedure Connect(const ASocket: TSocket; const AAddress: TNetworkAddress; APort: Word);
 
-function Receive(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
+function Receive(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt; AFlags: Integer = 0): SizeInt;
 function ReceiveFrom(const ASocket: TSocket; ABuffer: Pointer; MaxSize: SizeInt; AFlags: Integer = 0): TReceiveFromResult;
-function Send(const ASocket: TSocket; ABuffer: Pointer; ASize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
+function Send(const ASocket: TSocket; ABuffer: Pointer; ASize: SizeInt; AFlags: Integer = 0): SizeInt;
 function SendTo(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress;
-                  ReceiverPort: Word; ABuffer: Pointer; ASize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
+                  ReceiverPort: Word; ABuffer: Pointer; ASize: SizeInt; AFlags: Integer = 0): SizeInt;
 
-function ReceiveStr(const ASocket: TSocket; MaxLength: SizeInt = -1; AFlags: Integer = 0): String; inline;
-function ReceiveStrFrom(const ASocket: TSocket; MaxLength: SizeInt = MaxUDPPackageSize; AFlags: Integer = 0): TReceiveFromStringMessage; inline;
-function SendStr(const ASocket: TSocket; const AData: String; AFlags: Integer = 0): SizeInt; inline;
-function SendStrTo(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: String; AFlags: Integer = 0): SizeInt; inline;
+function ReceiveStr(const ASocket: TSocket; MaxLength: SizeInt = -1; AFlags: Integer = 0): String;
+function ReceiveStrFrom(const ASocket: TSocket; MaxLength: SizeInt = MaxUDPPackageSize; AFlags: Integer = 0): TReceiveFromStringMessage;
+function SendStr(const ASocket: TSocket; const AData: String; AFlags: Integer = 0): SizeInt;
+function SendStrTo(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: String; AFlags: Integer = 0): SizeInt;
  
-generic function Receive<T>(const ASocket: TSocket; AFlags: Integer = 0): T; inline;
-generic function ReceiveFrom<T>(const ASocket: TSocket; AFlags: Integer = 0): specialize TReceiveFromMessage<T>; inline;
-generic function Send<T>(const ASocket: TSocket; constref AData: T; AFlags: Integer = 0): SizeInt; inline;
-generic function SendTo<T>(const ASocket: TSocket; constref ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: T; AFlags: Integer = 0): SizeInt; inline;
+generic function Receive<T>(const ASocket: TSocket; AFlags: Integer = 0): T;
+generic function ReceiveFrom<T>(const ASocket: TSocket; AFlags: Integer = 0): specialize TReceiveFromMessage<T>;
+generic function Send<T>(const ASocket: TSocket; constref AData: T; AFlags: Integer = 0): SizeInt;
+generic function SendTo<T>(const ASocket: TSocket; constref ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: T; AFlags: Integer = 0): SizeInt;
 
-generic function ReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt = -1; AFlags: Integer = 0): specialize TArray<T>; inline;
-generic function ReceiveArrayFrom<T>(const ASocket: TSocket; MaxCount: SizeInt = -1; AFlags: Integer = 0): specialize TReceiveFromMessage<specialize TArray<T>>; inline;
-generic function SendArray<T>(const ASocket: TSocket; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt; inline;
-generic function SendArrayTo<T>(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt; inline;
+generic function ReceiveArray<T>(const ASocket: TSocket; MaxCount: SizeInt = -1; AFlags: Integer = 0): specialize TArray<T>;
+generic function ReceiveArrayFrom<T>(const ASocket: TSocket; MaxCount: SizeInt = -1; AFlags: Integer = 0): specialize TReceiveFromMessage<specialize TArray<T>>;
+generic function SendArray<T>(const ASocket: TSocket; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt;
+generic function SendArrayTo<T>(const ASocket: TSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt;
 
 // Timeout in MS
 function DataAvailable(const SocketArray: TSocketArray; TimeOut: Integer = 0): TSocketArray; overload;
 function DataAvailable(const ASocket: TSocket; TimeOut: Integer = 0): Boolean; overload; //inline;
-function DataAvailable(const SocketArray: array of TSocket; TimeOut: Integer = 0): TSocketArray; overload; inline;
+function DataAvailable(const SocketArray: array of TSocket; TimeOut: Integer = 0): TSocketArray; overload;
 
 function BytesAvailable(const ASocket: TSocket): SizeInt;
 
@@ -138,7 +138,7 @@ type
   False: (In6Addr: sockaddr_in6);
   end;
 
-function CreateAddr(AAddress: TNetworkAddress; APort: Word; DualStack: Boolean): _TAddressUnion; inline;
+function CreateAddr(AAddress: TNetworkAddress; APort: Word; DualStack: Boolean): _TAddressUnion;
 procedure ReadAddr(constref Addr: _TAddressUnion; DualStack: Boolean; out AAddress: TNetworkAddress; out APort: Word);
 implementation
 
@@ -190,7 +190,7 @@ begin
     raise EUnsupportedAddress.Create('Address Family ' + Addr.In4Addr.sin_family.ToString + ' not supported');
 end;
 
-function SocketInvalid(ASocket: TSocketFD): Boolean; inline;
+function SocketInvalid(ASocket: TSocketFD): Boolean;
 begin
   {$IfDef Windows}
   Result := ASocket = TSocketFD(INVALID_SOCKET);
@@ -537,6 +537,7 @@ var
 begin
   Result := nil;
   MaxSock := 0;
+  FDSet := Default(TFDSet);
   {$IfDef UNIX}fpFD_ZERO{$else}FD_ZERO{$endif}(FDSet);
   for i:=0 to Length(SocketArray) - 1 do
   begin
@@ -572,6 +573,7 @@ function DataAvailable(const SocketArray: array of TSocket; TimeOut: Integer
 var
   Arr: TSocketArray;
 begin
+  Arr := Default(TSocketArray);
   if Length(SocketArray) = 0 then Exit(nil);
   SetLength(Arr, Length(SocketArray));
   Move(SocketArray[0], Arr[0], Length(SocketArray) * SizeOf(SocketArray[0]));

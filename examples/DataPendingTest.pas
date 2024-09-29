@@ -3,10 +3,10 @@ program DataPendingTest;
 {$mode objfpc}{$H+}
 
 uses
-  SimpleSockets;
+  fpsockets;
 
 var
-  Sock: TSocket;
+  Sock: TFPSocket;
   dots, i: Integer;
   Msg: TReceiveFromStringMessage;
 begin

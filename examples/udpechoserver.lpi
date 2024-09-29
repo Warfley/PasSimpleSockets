@@ -30,11 +30,6 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="example"/>
       </Unit>
-      <Unit>
-        <Filename Value="..\simplesockets.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="SimpleSockets"/>
-      </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -48,6 +43,11 @@
       <OtherUnitFiles Value=".."/>
       <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
+    <Linking>
+      <Debugging>
+        <DebugInfoType Value="dsDwarf3"/>
+      </Debugging>
+    </Linking>
   </CompilerOptions>
   <Debugging>
     <Exceptions>

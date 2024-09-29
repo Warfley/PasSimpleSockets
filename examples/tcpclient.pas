@@ -3,10 +3,10 @@ program tcpclient;
 {$mode objfpc}{$H+}
 
 uses
-  SimpleSockets;
+  fpsockets;
 
 var
-  Sock: TSocket;
+  Sock: TFPSocket;
   Msg: String;
 begin
   sock := TCPSocket(stIPv4);

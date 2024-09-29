@@ -3,9 +3,9 @@ program tcpechoserver;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, SimpleSockets;
+  SysUtils, fpsockets;
 
-procedure HandleConnection(Connection: TSocketConnection);
+procedure HandleConnection(Connection: TFPSocketConnection);
 var
   Msg: String;
 begin
@@ -19,8 +19,8 @@ begin
 end;
 
 var
-  ServerSock: TSocket;
-  Conn: TSocketConnection;
+  ServerSock: TFPSocket;
+  Conn: TFPSocketConnection;
 begin
   ServerSock := TCPSocket(stDualStack);
   try

@@ -3,10 +3,10 @@ program example;
 {$mode objfpc}{$H+}
 
 uses
-  SimpleSockets;
+  fpsockets;
 
 var
-  Sock: TSocket;
+  Sock: TfpSocket;
   Msg: TReceiveFromStringMessage;
 begin
   Sock := UDPSocket(stDualStack);

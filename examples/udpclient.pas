@@ -3,10 +3,10 @@ program udpclient;
 {$mode objfpc}{$H+}
 
 uses
-  SimpleSockets;
+  fpsockets;
 
 var
-  Sock: TPasSocket;
+  Sock: TFPSocket;
   Msg: TReceiveFromStringMessage;
 begin
   Sock := UDPSocket(stIPv4);

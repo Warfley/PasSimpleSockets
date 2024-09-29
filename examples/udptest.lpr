@@ -6,7 +6,7 @@ uses
   {$IFDEF UNIX}
   cthreads,
   {$ENDIF}
-  Classes, SysUtils, SimpleSockets;
+  Classes, SysUtils, fpsockets;
 
 const
   SendStr = 'Hello Server';
@@ -16,11 +16,11 @@ var ClientOk, ServerOk: Boolean;
 
 procedure RunServer;
 var
-  sock: TPasSocket;
+  sock: TFPSocket;
   Received: TReceiveFromStringMessage;
 begin
-  sock := UDPSocket(stIPv4);
-  Bind(sock, '127.0.0.1', 1337);
+  sock := UDPSocket(stDualStack);
+  Bind(sock, '::0', 1337);
   Write('Server: Waiting for data (Timeout 100ms)');
   while not DataAvailable(sock, 100) do
     Write('.');
@@ -40,7 +40,7 @@ end;
 
 procedure RunClient;
 var
-  sock: TPasSocket;
+  sock: TFPSocket;
   Received: String;
 begin
   sock := UDPSocket(stIPv4);

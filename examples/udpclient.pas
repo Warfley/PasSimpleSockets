@@ -6,7 +6,7 @@ uses
   SimpleSockets;
 
 var
-  Sock: TSocket;
+  Sock: TPasSocket;
   Msg: TReceiveFromStringMessage;
 begin
   Sock := UDPSocket(stIPv4);

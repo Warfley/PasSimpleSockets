@@ -6,21 +6,21 @@ unit fpsockets;
 interface
 
 uses
-  SysUtils, Sockets;
+  SysUtils, Sockets, Nullable;
 
 type
 
   { Basic Socket Types }
 
-  TFPSocketType = (stIPv4, stIPv6, stDualStack);
-  TFPSocketProto = (spTCP, spUDP);
+  TFPSocketType = (stIPv4, stIPv6, stIPDualStack, stUnixSocket);
+  TFPSocketProto = (spStream, spDatagram);
   TFPSocket = record
     FD: TSocket;
     Protocol: TFPSocketProto;
     SocketType: TFPSocketType;
   end;
 
-  TAddressType = (atIN4, atIN6);
+  TAddressType = (atIN4, atIN6, atUnixSock);
   TNetworkAddress = record
     Address: String;
     AddressType: TAddressType;
@@ -48,6 +48,10 @@ type
 
   TReceiveFromStringMessage = specialize TReceiveFromMessage<String>;
 
+  { State Management }
+
+  TConnectionState = (csError, csNotConnected, csRefused, csPending, csConnected);
+
   { Exceptions }
 
   EDualStackNotSupported = class(Exception);
@@ -65,19 +69,35 @@ type
   end;
 
   EConnectionClosedException = class(Exception);
-  EUDPFragmentationException = class(Exception);
-  EInvalidReceiveSizeException = class(Exception);
+
+  { EFragmentedData }
+
+  EFragmentedData = class(Exception)
+  private
+    FFragment: TBytes;
+    FExpectedSize: SizeInt;
+  public
+    constructor Create(const AFragment: TBytes; AExpected: SizeInt; const AMessage: String);
+
+    property Fragment: TBytes read FFragment;
+    property ExpectedSize: SizeInt read FExpectedSize;
+  end;
 
 const
   MaxUDPPackageSize = 512;
 
   { Address Management }
 
+function isIPv4Address(const Address: String): Boolean; inline;
+function isIPv6Address(const Address: String): Boolean; inline;
+
 function IN4Address(const Address: String): TNetworkAddress; inline;
 function IN6Address(const Address: String): TNetworkAddress; inline;
 function IN4MappedIN6Address(const In4Address: String): TNetworkAddress; inline;
-function INAddr(const Address: String): TNetworkAddress; inline;
+function UnixAddr(const Address: String): TNetworkAddress; inline;
+function NetAddr(const Address: String): TNetworkAddress; inline;
 
+function isINAddr(const AAddr: TNetworkAddress): Boolean; inline;
 function IsIPv4Mapped(const IPv6Addr: TNetworkAddress): Boolean; inline;
 function ExtractIPv4Address(const IPv6Addr: TNetworkAddress): TNetworkAddress; inline;
 
@@ -97,29 +117,39 @@ procedure Bind(const ASocket: TFPSocket; const AAddress: TNetworkAddress; APort:
 
 procedure Listen(const ASocket: TFPSocket; Backlog: Integer); inline;
 function AcceptConnection(const ASocket: TFPSocket): TFPSocketConnection; inline;
+function AcceptNonBlocking(const ASocket: TFPSocket): specialize TNullable<TFPSocketConnection>; inline;
 
-procedure Connect(const ASocket: TFPSocket; const AAddress: TNetworkAddress; APort: Word); inline;
+function Connect(const ASocket: TFPSocket; const AAddress: TNetworkAddress; APort: Word): TConnectionState; inline;
 
 function Receive(const ASocket: TFPSocket; ABuffer: Pointer; MaxSize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
 function ReceiveFrom(const ASocket: TFPSocket; ABuffer: Pointer; MaxSize: SizeInt; AFlags: Integer = 0): TReceiveFromResult;
+function ReceiveFromNonBlocking(const ASocket: TFPSocket; ABuffer: Pointer; MaxSize: SizeInt; AFlags: Integer = 0): specialize TNullable<TReceiveFromResult>; inline;
 function Send(const ASocket: TFPSocket; ABuffer: Pointer; ASize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
 function SendTo(const ASocket: TFPSocket; const ReceiverAddr: TNetworkAddress;
                   ReceiverPort: Word; ABuffer: Pointer; ASize: SizeInt; AFlags: Integer = 0): SizeInt; inline;
 
-function ReceiveStr(const ASocket: TFPSocket; MaxLength: SizeInt = -1; AFlags: Integer = 0): String; inline;
+function ReceiveStr(const ASocket: TFPSocket; MaxLength: SizeInt = -1; AFlags: Integer = 0): String;
 function ReceiveStrFrom(const ASocket: TFPSocket; MaxLength: SizeInt = MaxUDPPackageSize; AFlags: Integer = 0): TReceiveFromStringMessage; inline;
+function ReceiveStrFromNonBlocking(const ASocket: TFPSocket; MaxLength: SizeInt = MaxUDPPackageSize; AFlags: Integer = 0): specialize TNullable<TReceiveFromStringMessage>; inline;
 function SendStr(const ASocket: TFPSocket; const AData: String; AFlags: Integer = 0): SizeInt; inline;
 function SendStrTo(const ASocket: TFPSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: String; AFlags: Integer = 0): SizeInt; inline;
- 
-generic function Receive<T>(const ASocket: TFPSocket; AFlags: Integer = 0): T; inline;
-generic function ReceiveFrom<T>(const ASocket: TFPSocket; AFlags: Integer = 0): specialize TReceiveFromMessage<T>; inline;
+
+generic function Receive<T>(const ASocket: TFPSocket; AFlags: Integer = 0): T;
+generic function ReceiveNonBlocking<T>(const ASocket: TFPSocket; AFlags: Integer = 0): specialize TNullable<T>;
+generic function ReceiveFrom<T>(const ASocket: TFPSocket; AFlags: Integer = 0): specialize TReceiveFromMessage<T>;
+generic function ReceiveFromNonBlocking<T>(const ASocket: TFPSocket; AFlags: Integer = 0): specialize TNullable<specialize TReceiveFromMessage<T>>;
 generic function Send<T>(const ASocket: TFPSocket; constref AData: T; AFlags: Integer = 0): SizeInt; inline;
 generic function SendTo<T>(const ASocket: TFPSocket; constref ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: T; AFlags: Integer = 0): SizeInt; inline;
 
 generic function ReceiveArray<T>(const ASocket: TFPSocket; MaxCount: SizeInt = -1; AFlags: Integer = 0): specialize TArray<T>;
 generic function ReceiveArrayFrom<T>(const ASocket: TFPSocket; MaxCount: SizeInt = -1; AFlags: Integer = 0): specialize TReceiveFromMessage<specialize TArray<T>>; inline;
+generic function ReceiveArrayFromNonBlocking<T>(const ASocket: TFPSocket; MaxCount: SizeInt = -1; AFlags: Integer = 0): specialize TNullable<specialize TReceiveFromMessage<specialize TArray<T>>>; inline;
 generic function SendArray<T>(const ASocket: TFPSocket; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt; inline;
 generic function SendArrayTo<T>(const ASocket: TFPSocket; const ReceiverAddr: TNetworkAddress; ReceiverPort: Word; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt; inline;
+
+  { Socket/Connection State Management }
+
+procedure SetNonBlocking(const ASocket: TFPSocket; AValue: Boolean);
 
 // Timeout in MS
 function DataAvailable(const SocketArray: specialize TArray<TFPSocket>; TimeOut: Integer = 0): specialize TArray<TFPSocket>; overload;
@@ -127,6 +157,14 @@ function DataAvailable(const ASocket: TFPSocket; TimeOut: Integer = 0): Boolean;
 function DataAvailable(const SocketArray: array of TFPSocket; TimeOut: Integer = 0): specialize TArray<TFPSocket>; overload; inline;
 
 function BytesAvailable(const ASocket: TFPSocket): SizeInt;
+
+function StreamClosed(const ASocket: TFPSocket): Boolean; inline;
+
+// For non blocking connections, connect will return a pending connection that needs to be checked
+// Note: csConnected means that connection was establised at least once
+// If it has been closed by the other side, it is still csConnected, use StreamClosed to figure out
+// if the stream is actually open
+function ConnectionState(const ASocket: TFPSocket): TConnectionState; inline;
 
 implementation
 
@@ -146,6 +184,12 @@ type
 const
   IPPROTO_IPV6 = {$IfDef WINDOWS}41{$Else}41{$EndIf};
   IPV6_V6ONLY = {$IfDef WINDOWS}27{$Else}26{$EndIf};
+
+function WouldBlock(SockErr: Integer): Boolean; inline;
+begin
+  Result := (SockErr = EsockEWOULDBLOCK)
+            {$IfDef Unix} or (SockErr = ESysEAGAIN) {$EndIf}
+end;
 
 function CreateAddr(AAddress: TNetworkAddress; APort: Word; DualStack: Boolean): _TAddressUnion;
 begin
@@ -197,24 +241,47 @@ begin
   {$EndIf}
 end;
 
-function CreateRawSocket(ADomain: TFPSocketType; AType: Integer; AProto: Integer): TSocket;
+function CreateRawSocket(ADomain: TFPSocketType; ASockProto: TFPSocketProto; AProto: Integer): TSocket;
 var
-  AFam, v6Only: Integer;
+  AFam, AType, v6Only: Integer;
 begin
-  if ADomain = stIPv4 then
-    AFam := AF_INET
-  else
-    AFam := AF_INET6;
+  case ADomain of
+  stIPv4: AFam := AF_INET;
+  stIPv6,
+  stIPDualStack: AFam := AF_INET6;
+  stUnixSocket: AFam := AF_UNIX;
+  end;
+  case ASockProto of
+  spStream: AType := SOCK_STREAM;
+  spDatagram: AType := SOCK_DGRAM;
+  end;
   Result := fpsocket(AFam, AType, AProto);
   if SocketInvalid(Result) then
     raise ESocketError.Create(socketerror, 'socket');
 
-  if ADomain = stDualStack then
+  if ADomain = stIPDualStack then
   begin
     v6Only := 0;
     if fpsetsockopt(Result, IPPROTO_IPV6, IPV6_V6ONLY, @v6Only, SizeOf(v6Only)) <> 0 then
+    begin
+      FpClose(Result);
       raise EDualStackNotSupported.Create('Dualstack option not supported on this system: ' + socketerror.ToString);
+    end;
   end;
+end;
+
+function isIPv4Address(const Address:String):Boolean;
+var
+  dummy:in_addr;
+begin
+  Result := TryStrToHostAddr(Address, dummy);
+end;
+
+function isIPv6Address(const Address:String):Boolean;
+var
+  dummy:in6_addr;
+begin
+  Result := TryStrToHostAddr6(Address, dummy);
 end;
 
 function IN4Address(const Address: String): TNetworkAddress;
@@ -240,13 +307,22 @@ begin
                                               (InAddr.s_bytes[3] shl 8) or InAddr.s_bytes[4]]));
 end;
 
-function INAddr(const Address: String): TNetworkAddress;
+function UnixAddr(const Address: String):TNetworkAddress;
 begin
  Result := Default(TNetworkAddress);
-  if Pos(':', Address) = 0 then
+ Result.Address := Address;
+ Result.AddressType := atUnixSock;
+end;
+
+function NetAddr(const Address: String): TNetworkAddress;
+begin
+ Result := Default(TNetworkAddress);
+  if isIPv4Address(Address) then
     Result.AddressType := atIN4
-  else
-    Result.AddressType := atIN6;
+  else if isIPv6Address(Address) then
+    Result.AddressType := atIN6
+  else // Filenames can be pretty much anything
+    Result.AddressType := atUnixSock;
   Result.Address := Address;
 end;
 
@@ -265,6 +341,11 @@ begin
             (IN6Addr.u6_addr16[3] = 0) and
             (IN6Addr.u6_addr16[4] = 0) and
             (IN6Addr.u6_addr16[5] = $FFFF);
+end;
+
+function isINAddr(const AAddr:TNetworkAddress):Boolean;
+begin
+  Result := AAddr.AddressType in [atIN4, atIN6];
 end;
 
 function ExtractIPv4Address(const IPv6Addr: TNetworkAddress): TNetworkAddress;
@@ -298,35 +379,37 @@ operator=(const A, B: TNetworkAddress): Boolean;
 begin
   Result := (A.AddressType = B.AddressType) and (
               ((A.AddressType = atIN4) and (A.Address = B.Address)) or // IPv4: simple string equality
-              ((A.AddressType = atIN6) and IN6Equal(A.Address, B.Address)) // IPv6 check binary equality
+              ((A.AddressType = atIN6) and IN6Equal(A.Address, B.Address)) or // IPv6 check binary equality
+              ((A.AddressType = atUnixSock) and SameFileName(A.Address, B.Address)) // UnixSock check if filename equals
             );
 end;
 
 operator<>(const A, B: TNetworkAddress): Boolean;
 begin
   Result := (A.AddressType <> B.AddressType) or not (
-              ((A.AddressType = atIN4) and (A.Address <> B.Address)) or // IPv4: simple string equality
-              ((A.AddressType = atIN6) and IN6Equal(A.Address, B.Address)) // IPv6 check binary equality
+              ((A.AddressType = atIN4) and (A.Address = B.Address)) or // IPv4: simple string equality
+              ((A.AddressType = atIN6) and IN6Equal(A.Address, B.Address)) or // IPv6 check binary equality
+              ((A.AddressType = atUnixSock) and SameFileName(A.Address, B.Address)) // UnixSock check if filename equals
             );
 end;
 
 operator:=(const AStr: String): TNetworkAddress;
 begin
-  Result := INAddr(AStr);
+  Result := NetAddr(AStr);
 end;
 
 function TCPSocket(AType: TFPSocketType): TFPSocket;
 begin
   Result.SocketType := AType;
-  Result.Protocol := spTCP;
-  Result.FD := CreateRawSocket(AType, SOCK_STREAM, 0);
+  Result.Protocol := spStream;
+  Result.FD := CreateRawSocket(Result.SocketType, Result.Protocol, 0);
 end;
 
 function UDPSocket(AType: TFPSocketType): TFPSocket;
 begin
   Result.SocketType := AType;
-  Result.Protocol := spUDP;
-  Result.FD := CreateRawSocket(AType, SOCK_DGRAM, 0);
+  Result.Protocol := spDatagram;
+  Result.FD := CreateRawSocket(Result.SocketType, Result.Protocol, 0);
 end;
 
 procedure CloseSocket(const ASocket: TFPSocket);
@@ -342,7 +425,7 @@ var
 begin
   if ReuseAddr then
     fpsetsockopt(ASocket.FD, SOL_SOCKET, SO_REUSEADDR, @enableReuse, SizeOf(enableReuse));
-  addr := CreateAddr(AAddress, APort, ASocket.SocketType = stDualStack);
+  addr := CreateAddr(AAddress, APort, ASocket.SocketType = stIPDualStack);
   if fpbind(ASocket.FD, Sockets.PSockAddr(@addr), SizeOf(addr)) <> 0 then raise
     ESocketError.Create(socketerror, 'bind (%s:%d)'.Format([AAddress.Address, APort]));
 end;
@@ -362,17 +445,54 @@ begin
   if SocketInvalid(Result.Socket.FD) then
     raise ESocketError.Create(socketerror, 'accept');
   Result.Socket.SocketType := ASocket.SocketType;
-  ReadAddr(addr, ASocket.SocketType = stDualStack, Result.ClientAddress, Result.ClientPort);
+  Result.Socket.Protocol := ASocket.Protocol;
+  ReadAddr(addr, ASocket.SocketType = stIPDualStack, Result.ClientAddress, Result.ClientPort);
 end;
 
-procedure Connect(const ASocket: TFPSocket;
-  const AAddress: TNetworkAddress; APort: Word);
+function AcceptNonBlocking(const ASocket: TFPSocket): specialize TNullable<
+  TFPSocketConnection>;
+var
+  Ret: TFPSocketConnection;
+  addr: _TAddressUnion;
+  addrLen: TSocklen = SizeOf(addr);
+begin
+  Ret.Socket.FD := fpaccept(ASocket.FD, Sockets.psockaddr(@addr), @addrLen);
+  if SocketInvalid(Ret.Socket.FD) then
+    if WouldBlock(socketerror) then
+      Exit(null)
+    else
+      raise ESocketError.Create(socketerror, 'accept');
+  Ret.Socket.SocketType := ASocket.SocketType;
+  Ret.Socket.Protocol := ASocket.Protocol;
+  ReadAddr(addr, ASocket.SocketType = stIPDualStack, Ret.ClientAddress, Ret.ClientPort);
+  Result := Ret;
+end;
+
+function Connect(const ASocket: TFPSocket; const AAddress: TNetworkAddress;
+  APort: Word): TConnectionState;
 var
   addr: _TAddressUnion;
+const
+  EALREADY = {$IfDef Windows}WSAEALREADY{$Else}ESysEALREADY{$EndIf};
+  EINPROGRESS = {$IfDef Windows}WSAEINPROGRESS{$Else}ESysEINPROGRESS{$EndIf};
+  ECONNREFUSED = {$IfDef Windows}WSAECONNREFUSED{$Else}ESysECONNREFUSED{$EndIf};
 begin
-  addr := CreateAddr(AAddress, APort, ASocket.SocketType = stDualStack);
+  addr := CreateAddr(AAddress, APort, ASocket.SocketType = stIPDualStack);
   if fpconnect(ASocket.FD, Sockets.psockaddr(@addr), SizeOf(addr)) <> 0 then
-    raise ESocketError.Create(socketerror, 'connect');
+    case socketerror of
+    EALREADY,
+    EINPROGRESS,
+    EsockEWOULDBLOCK:
+      Exit(csPending);
+    ECONNREFUSED:
+      Exit(csRefused);
+    else
+      raise ESocketError.Create(socketerror, 'connect');
+    end;
+  if ASocket.Protocol<>spDatagram then
+    Result := csNotConnected
+  else
+    Result := csConnected;
 end;
 
 function Receive(const ASocket: TFPSocket; ABuffer: Pointer; MaxSize: SizeInt;
@@ -382,7 +502,10 @@ begin
   if Result = 0 then
     raise EConnectionClosedException.Create('The connection closed')
   else if Result < 0 then
-    raise ESocketError.Create(socketerror, 'recv');
+    if WouldBlock(socketerror) then
+      Result := 0
+    else
+      raise ESocketError.Create(socketerror, 'recv');
 end;
 
 function ReceiveFrom(const ASocket: TFPSocket; ABuffer: Pointer; MaxSize: SizeInt;
@@ -391,11 +514,23 @@ var
   addr: _TAddressUnion;
   addrLen: TSocklen;
 begin
+  Result := Default(TReceiveFromResult);
   addrLen := SizeOf(_TAddressUnion);
   Result.DataSize := fprecvfrom(ASocket.FD, ABuffer, MaxSize, AFlags, Sockets.PSockAddr(@addr), @addrLen);
   if Result.DataSize < 0 then
-    raise ESocketError.Create(socketerror, 'recvfrom');
-  ReadAddr(addr, ASocket.SocketType = stDualStack, Result.FromAddr, Result.FromPort);
+    if WouldBlock(socketerror) then
+      Exit(Default(TReceiveFromResult)) // Will set the DataSize of return to 0
+    else
+      raise ESocketError.Create(socketerror, 'recvfrom');
+  ReadAddr(addr, ASocket.SocketType = stIPDualStack, Result.FromAddr, Result.FromPort);
+end;
+
+function ReceiveFromNonBlocking(const ASocket:TFPSocket;ABuffer:Pointer;MaxSize:
+  SizeInt;AFlags:Integer):specialize TNullable<TReceiveFromResult>;
+begin
+  Result := ReceiveFromNonBlocking(ASocket, ABuffer, MaxSize, AFlags);
+  if Result.Value.DataSize = 0 then
+    Result := null;
 end;
 
 function Send(const ASocket: TFPSocket; ABuffer: Pointer; ASize: SizeInt;
@@ -403,7 +538,10 @@ function Send(const ASocket: TFPSocket; ABuffer: Pointer; ASize: SizeInt;
 begin
   Result := fpsend(ASocket.FD, ABuffer, ASize, AFlags);
   if Result < 0 then
-    raise ESocketError.Create(socketerror, 'send');
+    if WouldBlock(socketerror) then
+      Result := 0
+    else
+      raise ESocketError.Create(socketerror, 'send');
 end;
 
 function SendTo(const ASocket: TFPSocket; const ReceiverAddr: TNetworkAddress;
@@ -412,10 +550,13 @@ function SendTo(const ASocket: TFPSocket; const ReceiverAddr: TNetworkAddress;
 var
   addr: _TAddressUnion;
 begin
-  addr := CreateAddr(ReceiverAddr, ReceiverPort, ASocket.SocketType = stDualStack);
+  addr := CreateAddr(ReceiverAddr, ReceiverPort, ASocket.SocketType = stIPDualStack);
   Result := fpsendto(ASocket.FD, ABuffer, ASize, AFlags, Sockets.psockaddr(@addr), SizeOf(addr));
   if Result < 0 then
-    raise ESocketError.Create(socketerror, 'sendto');
+    if WouldBlock(socketerror) then
+      Result := 0
+    else
+      raise ESocketError.Create(socketerror, 'sendto');
 end;
 
 function ReceiveStr(const ASocket: TFPSocket; MaxLength: SizeInt;
@@ -423,10 +564,10 @@ function ReceiveStr(const ASocket: TFPSocket; MaxLength: SizeInt;
 const
   ReadSize = 1024;
 var
-  Len: SizeInt;
+  Len, ReadLen: SizeInt;
 begin
   Result := '';
-  if (MaxLength < 0) and (ASocket.Protocol = spUDP) then
+  if (MaxLength < 0) and (ASocket.Protocol = spDatagram) then
     MaxLength := MaxUDPPackageSize;
   // If maxlength read as much
   if MaxLength > 0 then
@@ -438,10 +579,18 @@ begin
   end;
   // If no maxlength do a blocking read (required to figure if stream was closed)
   Len := 0;
+  MaxLength := BytesAvailable(ASocket);
+  if MaxLength = 0 then
+    MaxLength := ReadSize;
   repeat
-    SetLength(Result, Len + ReadSize);
-    Len += Receive(ASocket, @Result[1+Len], ReadSize, AFlags);
-  until (Len < Length(Result)) or (BytesAvailable(ASocket) <= 0);
+    SetLength(Result, Len + MaxLength);
+    ReadLen := Receive(ASocket, @Result[1+Len], ReadSize, AFlags);
+    if ReadLen = 0 then // non blocking
+      break;
+    Len += ReadLen;
+    // Check if more was received while reading
+    MaxLength:=BytesAvailable(ASocket);
+  until (Len < Length(Result)) or (MaxLength <= 0);
   SetLength(Result, Len);
 end;
 
@@ -450,12 +599,30 @@ function ReceiveStrFrom(const ASocket: TFPSocket; MaxLength: SizeInt;
 var
   UdpMessage: TReceiveFromResult;
 begin
-  Result := Default(specialize TReceiveFromMessage<String>);
+  Result := Default(TReceiveFromStringMessage);
   SetLength(Result.Data, MaxLength);
   UdpMessage := ReceiveFrom(ASocket, @Result.Data[1], MaxLength, AFlags);
   SetLength(Result.Data, UdpMessage.DataSize);
   Result.FromAddr := UdpMessage.FromAddr;
   Result.FromPort := UdpMessage.FromPort;
+end;
+
+function ReceiveStrFromNonBlocking(const ASocket: TFPSocket;
+  MaxLength: SizeInt; AFlags: Integer): specialize TNullable<
+  TReceiveFromStringMessage>;
+var
+  Ret: TReceiveFromStringMessage;
+  UdpMessage: TReceiveFromResult;
+begin
+  Ret := Default(TReceiveFromStringMessage);
+  SetLength(Ret.Data, MaxLength);
+  UdpMessage := ReceiveFrom(ASocket, @Ret.Data[1], MaxLength, AFlags);
+  if UdpMessage.DataSize = 0 then
+    Exit(null);
+  SetLength(Ret.Data, UdpMessage.DataSize);
+  Ret.FromAddr := UdpMessage.FromAddr;
+  Ret.FromPort := UdpMessage.FromPort;
+  Result := Ret;
 end;
 
 function SendStr(const ASocket: TFPSocket; const AData: String; AFlags: Integer
@@ -475,24 +642,92 @@ end;
 
 generic function Receive<T>(const ASocket: TFPSocket; AFlags: Integer = 0): T;
 var
-  Len: SizeInt;
+  Frag: TBytes;
+  Len, ReadLen: SizeInt;
 begin
   Result := Default(T);
   Len := 0;
   while Len < SizeOf(Result) do
-    Len += Receive(ASocket, @PByte(@Result)[Len], SizeOf(Result) - Len, AFlags);
+  begin
+    ReadLen := Receive(ASocket, @PByte(@Result)[Len], SizeOf(Result) - Len, AFlags);
+    if ReadLen = 0 then
+      if Len = 0 then
+        raise ESocketError.Create(EsockEWOULDBLOCK, 'recv')
+      else // Fragment received but non blocking afterwards
+      begin
+        SetLength(Frag, Len);
+        Move(Result, Frag[0], Len);
+        raise EFragmentedData.Create(Frag, SizeOf(T), 'Only fragment received in non blocking read');
+      end;
+    Len += ReadLen;
+  end;
+end;
+
+generic function ReceiveNonBlocking<T>(const ASocket: TFPSocket; AFlags: Integer = 0): specialize TNullable<T>;
+var
+  Ret: T;
+  Frag: TBytes;
+  Len, ReadLen: SizeInt;
+begin
+  Ret := Default(T);
+  Len := 0;
+  while Len < SizeOf(Ret) do
+  begin
+    ReadLen := Receive(ASocket, @PByte(@Ret)[Len], SizeOf(Ret) - Len, AFlags);
+    if ReadLen = 0 then
+      if Len = 0 then
+        Exit(null)
+      else // Fragment received but non blocking afterwards
+      begin
+        SetLength(Frag, Len);
+        Move(Ret, Frag[0], Len);
+        raise EFragmentedData.Create(Frag, SizeOf(T), 'Only fragment received in non blocking read');
+      end;
+    Len += ReadLen;
+  end;
+  Result := Ret;
 end;
 
 generic function ReceiveFrom<T>(const ASocket: TFPSocket; AFlags: Integer = 0): specialize TReceiveFromMessage<T>;
 var
+  Frag: TBytes;
   UdpMessage: TReceiveFromResult;
 begin
   Result := Default(T);
   UdpMessage := ReceiveFrom(ASocket, @Result, SizeOf(Result), AFlags);
   if UdpMessage.DataSize < SizeOf(T) then
-    raise EUDPFragmentationException.Create('Receiving of fragmented data is not supported by typed receive');
+    if UdpMessage.DataSize = 0 then 
+        raise ESocketError.Create(EsockEWOULDBLOCK, 'recvfrom')
+    else
+    begin
+      SetLength(Frag, UdpMessage.DataSize);
+      Move(Result.Data, Frag[0], UdpMessage.DataSize);
+      raise EFragmentedData.Create(Frag, SizeOf(T), 'Only fragment received ReceiveFrom, likely UDP Fragmentation');
+    end;
   Result.FromAddr := UdpMessage.FromAddr;
   Result.FromPort := UdpMessage.FromPort;
+end;
+
+generic function ReceiveFromNonBlocking<T>(const ASocket: TFPSocket; AFlags: Integer = 0): specialize TNullable<specialize TReceiveFromMessage<T>>;
+var
+  Ret: specialize TReceiveFromMessage<T>;
+  Frag: TBytes;
+  UdpMessage: TReceiveFromResult;
+begin
+  Ret := Default(T);
+  UdpMessage := ReceiveFrom(ASocket, @Ret, SizeOf(Ret), AFlags);
+  if UdpMessage.DataSize < SizeOf(T) then
+    if UdpMessage.DataSize = 0 then
+      Exit(null)
+    else
+    begin
+      SetLength(Frag, UdpMessage.DataSize);
+      Move(Ret.Data, Frag[0], UdpMessage.DataSize);
+      raise EFragmentedData.Create(Frag, SizeOf(T), 'Only fragment received ReceiveFrom, likely UDP Fragmentation');
+    end;
+  Ret.FromAddr := UdpMessage.FromAddr;
+  Ret.FromPort := UdpMessage.FromPort;
+  Result := Ret;
 end;
 
 generic function Send<T>(const ASocket: TFPSocket; constref AData: T; AFlags: Integer = 0): SizeInt;
@@ -505,44 +740,82 @@ begin
   Result := SendTo(ASocket, ReceiverAddr, ReceiverPort, @AData, SizeOf(T), AFlags);
 end;
 
-generic function ReceiveArray<T>(const ASocket: TFPSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TArray<T>;
+generic function ReceiveArray<T>(const ASocket: TFPSocket; MaxCount: SizeInt;
+  AFlags: Integer = 0): specialize TArray<T>;
 const
   SizeOfT = SizeOf(T);
-  ReadLenBase = (1024 div SizeOfT) * SizeOfT;
-  // If ReadLenBase = 0 (because SizeOf(T)>1024) then its SizeOf(T) otherwise its ReadLenBase
-  ReadLen = Ord(ReadLenBase > 0) * ReadLenBase + Ord(ReadLenBase <= 0) * SizeOf(T);
+  ReadCount = 1024 div SizeOfT;
 var
-  Len: SizeInt;
+  Frag: TBytes;
+  Len, ReadLen: SizeInt;
 begin
   Result := nil;
-  if (MaxCount < 0) and (ASocket.Protocol = spUDP) then
+  if (MaxCount < 0) and (ASocket.Protocol = spDatagram) then
+  {$Push}
+  {$WARN 6018 off}
     if SizeOf(T) < MaxUDPPackageSize then
       MaxCount := MaxUDPPackageSize div SizeOf(T)
     else // Lets try anyway and if it fails it fails
       MaxCount := 1;
+  {$Pop}
+
   // If MaxCount, read MaxCount
   if MaxCount > 0 then
   begin
     SetLength(Result, MaxCount);
     Len := 0;
     repeat
-      Len += Receive(ASocket, @PByte(@Result[0])[Len], MaxCount * SizeOf(T) - Len, AFlags);
-    until (Len mod SizeOf(T)) = 0; 
+      ReadLen := Receive(ASocket, @PByte(@Result[0])[Len], MaxCount * SizeOf(T) - Len, AFlags);
+      if ReadLen = 0 then
+        if Len = 0 then
+          break
+        else
+        begin
+          SetLength(Frag, Len);
+          Move(Result[0], Frag[0], Len);
+          raise EFragmentedData.Create(Frag, (Len div SizeOf(T) + 1) * SizeOf(T),
+            'Receiving of fragmented data is not supported by typed receive');
+        end;
+      Len += ReadLen;
+    until (Len mod SizeOf(T)) = 0;
     SetLength(Result, Len div SizeOf(T));
     Exit;
   end;
 
-  // Else do a blocking read and then read as much as in buffer, plus block to finish open blocks
+  // Else do a (blocking) read and then read as much as in buffer, plus block to finish open blocks
   Len := 0;
+  MaxCount := BytesAvailable(ASocket) div SizeOfT;
+  {$Push}
+  {$WARN 6018 off}
+  if MaxCount = 0 then
+    if ReadCount = 0 then
+      MaxCount := 1
+    else
+      MaxCount := ReadCount;
+  {$Pop}
   repeat
-    SetLength(Result, Length(Result)+ReadLen);
-    Len += Receive(ASocket, @PByte(@Result[0])[Len], ReadLen, AFlags);
-  until ((Len<Length(Result)*SizeOf(T)) Or (BytesAvailable(ASocket) = 0)) And ((Len mod SizeOf(T)) = 0);
+    SetLength(Result, Length(Result)+MaxCount);
+    ReadLen := Receive(ASocket, @PByte(@Result[0])[Len], MaxCount*SizeOfT, AFlags);
+    if ReadLen = 0 then
+      if Len = 0 then
+        break
+      else
+      begin
+        SetLength(Frag, Len);
+        Move(Result[0], Frag[0], Len);
+        raise EFragmentedData.Create(Frag, (Len div SizeOf(T) + 1) * SizeOf(T),
+          'Receiving of fragmented data is not supported by typed receive');
+      end;
+    Len += ReadLen;
+    MaxCount := BytesAvailable(ASocket) div SizeOfT;
+  until ((Len<Length(Result)*SizeOf(T)) Or (MaxCount = 0)) And ((Len mod SizeOf(T)) = 0);
   SetLength(Result, Len div SizeOf(T));
 end;
 
-generic function ReceiveArrayFrom<T>(const ASocket: TFPSocket; MaxCount: SizeInt; AFlags: Integer = 0): specialize TReceiveFromMessage<specialize TArray<T>>;
-var
+generic function ReceiveArrayFrom<T>(const ASocket: TFPSocket; MaxCount: SizeInt;
+  AFlags: Integer = 0): specialize TReceiveFromMessage<specialize TArray<T>>;
+var    
+  Frag: TBytes;
   UdpMessage: TReceiveFromResult;
 begin
   if MaxCount < 0 then
@@ -554,10 +827,46 @@ begin
   SetLength(Result.Data, MaxCount);
   UdpMessage := ReceiveFrom(ASocket, @Result.Data[0], MaxCount * SizeOf(T), AFlags);
   if UdpMessage.DataSize mod SizeOf(T) > 0 then
-    raise EUDPFragmentationException.Create('Receiving of fragmented data is not supported by typed receive');
-  SetLength(Result.Data, UdpMessage.DataSize div SizeOf(T)); 
+  begin
+    SetLength(Frag, UdpMessage.DataSize);
+    Move(Result.Data[0], Frag[0], UdpMessage.DataSize);
+    raise EFragmentedData.Create(Frag, (UdpMessage.DataSize div SizeOf(T) + 1) * SizeOf(T),
+      'Receiving of fragmented data is not supported by typed receive');
+  end;
+  SetLength(Result.Data, UdpMessage.DataSize div SizeOf(T));
   Result.FromAddr := UdpMessage.FromAddr;
   Result.FromPort := UdpMessage.FromPort;
+end;
+
+generic function ReceiveArrayFromNonBlocking<T>(const ASocket: TFPSocket;
+  MaxCount: SizeInt = -1; AFlags: Integer = 0
+  ): specialize TNullable<specialize TReceiveFromMessage<specialize TArray<T>>>;
+var  
+  Frag: TBytes;
+  Ret: specialize TReceiveFromMessage<specialize TArray<T>>;
+  UdpMessage: TReceiveFromResult;
+begin
+  if MaxCount < 0 then
+    if SizeOf(T) < MaxUDPPackageSize then
+      MaxCount := MaxUDPPackageSize div SizeOf(T)
+    else // Lets try anyway and if it fails it fails
+      MaxCount := 1;
+  Ret.Data := nil;
+  SetLength(Ret.Data, MaxCount);
+  UdpMessage := ReceiveFrom(ASocket, @Ret.Data[0], MaxCount * SizeOf(T), AFlags);
+  if UdpMessage.DataSize = 0 then
+    Exit(null);
+  if UdpMessage.DataSize mod SizeOf(T) > 0 then
+  begin
+    SetLength(Frag, UdpMessage.DataSize);
+    Move(Ret.Data[0], Frag[0], UdpMessage.DataSize);
+    raise EFragmentedData.Create(Frag, (UdpMessage.DataSize div SizeOf(T) + 1) * SizeOf(T),
+      'Receiving of fragmented data is not supported by typed receive');
+  end;
+  SetLength(Ret.Data, UdpMessage.DataSize div SizeOf(T));
+  Ret.FromAddr := UdpMessage.FromAddr;
+  Ret.FromPort := UdpMessage.FromPort;
+  Result := Ret;
 end;
 
 generic function SendArray<T>(const ASocket: TFPSocket; const AData: specialize TArray<T>; AFlags: Integer = 0): SizeInt;
@@ -571,6 +880,27 @@ begin
   if Length(AData) = 0 then Exit(0);
   Result := SendTo(ASocket, ReceiverAddr, ReceiverPort, @AData[0], Length(AData) * SizeOf(T), AFlags);
 end;
+
+procedure SetNonBlocking(const ASocket: TFPSocket; AValue: Boolean);
+{$IfDef Windows}
+var
+  nonblock: u_long;
+begin
+  nonblock := Ord(AValue);
+  ioctlsocket(ASocket, LongInt(FIONBIO), @nonblock);
+end;
+{$Else}
+var
+  State: cint;
+begin
+  State := FpFcntl(ASocket.FD, F_GetFl);
+  if AValue then
+    State := State Or O_NONBLOCK
+  else
+    State := State And not O_NONBLOCK;
+  FpFcntl(ASocket.FD, F_SetFL, state);
+end;
+{$EndIf}
 
 function DataAvailable(const SocketArray: specialize TArray<TFPSocket>;
   TimeOut: Integer): specialize TArray<TFPSocket>;
@@ -641,12 +971,44 @@ begin
     Result := Count;
 end;
 
+function StreamClosed(const ASocket:TFPSocket):Boolean;
+begin
+  Result := (ASocket.Protocol <> spStream) Or (
+              DataAvailable(ASocket, 0) And
+              (BytesAvailable(ASocket) = 0)
+            );
+end;
+
+function ConnectionState(const ASocket:TFPSocket): TConnectionState;
+begin
+  if (ASocket.Protocol <> spStream) then
+    Exit(csNotConnected);
+  if (Sockets.fprecv(ASocket.FD, nil, 0, 0) = 0) And
+     (Sockets.fpsend(ASocket.FD, nil, 0, 0) = 0) then
+  case socketerror of
+  ENOTCONN: Result := csPending;
+  ECONNREFUSED: Result := csRefused;
+  else
+    Result := csError;
+  end;
+end;
+
 { ESocketError }
 
 constructor ESocketError.Create(ACode: Integer; const FunName: String);
 begin
   inherited CreateFmt('[Socket Error: %d] %s call failed',  [ACode, FunName]);
   FCode := ACode;
+end;
+
+{ EFragmentedData }
+
+constructor EFragmentedData.Create(const AFragment: TBytes; AExpected: SizeInt;
+  const AMessage: String);
+begin
+  inherited Create(AMessage);
+  FFragment := AFragment;
+  FExpectedSize := AExpected;
 end;
 
 end.

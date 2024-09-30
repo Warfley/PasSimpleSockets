@@ -176,9 +176,10 @@ uses
 type
   _PAddressUnion = ^_TAddressUnion;
   _TAddressUnion = record
-  case Boolean of
-  True: (In4Addr: sockets.sockaddr_in);
-  False: (In6Addr: sockets.sockaddr_in6);
+  case TFPSocketType of
+  stIPv4: (In4Addr: sockets.sockaddr_in);
+  stIPv6: (In6Addr: sockets.sockaddr_in6);
+  stUnixSocket: (UnixAddr: sockets.sockaddr_un);
   end;
 
 const
@@ -209,12 +210,22 @@ begin
     Result.In6Addr.sin6_flowinfo := 0;
     Result.In6Addr.sin6_scope_id := 0;
   end
+  else if AAddress.AddressType = atUnixSock then
+  begin
+    if Length(AAddress.Address) > SizeOf(Result.UnixAddr.sun_path)-1 then
+      raise EUnsupportedAddress.Create('Unix address should be at most 108 characters');
+    Result.UnixAddr.sun_family := AF_UNIX;
+    FillChar(Result.UnixAddr, SizeOf(Result.UnixAddr), #00);
+    Move(AAddress.Address[1], Result.UnixAddr.sun_path, Length(AAddress.Address));
+  end
   else
     raise EUnsupportedAddress.Create('Address type ' + ord(AAddress.AddressType).ToString + ' not supported');
 end;
 
 procedure ReadAddr(constref Addr: _TAddressUnion; DualStack: Boolean; out
   AAddress: TNetworkAddress; out APort: Word);
+var
+  i:Integer;
 begin
   if Addr.In4Addr.sin_family = AF_INET then
   begin
@@ -227,6 +238,19 @@ begin
     if DualStack and IsIPv4Mapped(AAddress.Address) then
       AAddress := ExtractIPv4Address(AAddress);
     APort := NToHs(Addr.In6Addr.sin6_port);
+  end
+  else if Addr.In6Addr.sin6_family = AF_INET6 then
+  begin
+    AAddress.AddressType := atUnixSock;
+    SetLength(AAddress.Address, SizeOf(Addr.UnixAddr.sun_path));
+    i:=0;
+    while i < Length(Addr.UnixAddr.sun_path) do
+      if Addr.UnixAddr.sun_path[i+low(Addr.UnixAddr.sun_path)] = #00 then
+        break
+      else
+        AAddress.Address[i+1] := Addr.UnixAddr.sun_path[i+low(Addr.UnixAddr.sun_path)];
+    SetLength(AAddress.Address, i);
+    APort := 0;
   end
   else
     raise EUnsupportedAddress.Create('Address Family ' + Addr.In4Addr.sin_family.ToString + ' not supported');

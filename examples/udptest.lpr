@@ -198,7 +198,7 @@ begin
       ServerError := 'Unexpected response length ' + Length(Received.Data).ToString;
       Exit;
     end;
-    for i:=0 to Length(ReplyStr) -1 do
+    for i:=0 to Length(HelloStr) -1 do
       if PChar(@Received.Data[0])[i]<>HelloStr[i+1] then
       begin
         ServerError := 'Unexpected response Char ' + PChar(@Received.Data[0])[i] + '@' + i.ToString;;

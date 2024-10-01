@@ -273,7 +273,7 @@ begin
       ServerError := 'Unexpected response length ' + Length(Received).ToString;
       Exit;
     end;
-    for i:=0 to Length(ReplyStr) -1 do
+    for i:=0 to Length(HelloStr) -1 do
       if PChar(@Received[0])[i]<>HelloStr[i+1] then
       begin
         ServerError := 'Unexpected response Char ' + PChar(@Received[0])[i] + '@' + i.ToString;;
@@ -455,6 +455,9 @@ begin
   end;
 end;
 
+{$IfDef Unix}
+// Different behavior between winsock and berkley sockets
+// Seems like winsock does not provide refused when the server closes while pending
 procedure TestRefusedServer;
 var
   sock: TFPSocket;
@@ -476,6 +479,7 @@ end;
 procedure TestRefusedClient;
 var
   sock: TFPSocket;
+  State: TConnectionState;
 begin
   ClientError := '';
   try
@@ -484,7 +488,8 @@ begin
       SetNonBlocking(sock, True);
       Connect(sock, '127.0.0.1', 1337);
       Sleep(200);
-      if ConnectionState(sock) <> csRefused then
+      State:=ConnectionState(sock);
+      if State <> csRefused then
       begin
         ClientError := 'Connection should be refused';
         Exit;
@@ -496,6 +501,7 @@ begin
     ClientError := 'Exception: ' + E.Message;
   end;
 end;
+{$EndIf}
 
 procedure TestFragmentationServer;
 var
@@ -726,7 +732,9 @@ begin
   RunTest('ReceiveArrayTest', @ReceiveArrayTestServer, @ReceiveArrayTestClient);
   RunTest('ChunkTest', @ChunkTestServer, @ChunkTestClient);
   RunTest('NonBlockingTest', @TestNonBlockingServer, @TestNonBlockingClient);
+  {$IfDef Unix}
   RunTest('RefusedTest', @TestRefusedServer, @TestRefusedClient);
+  {$EndIf}
   RunTest('FragmentationTest', @TestFragmentationServer, @TestFragmentationClient);
   RunTest('FragmentedArrayTest', @TestFragmentedArrayServer, @TestFragmentedArrayClient);
   RunTest('FragmentedCloseTest', @TestFragmentedCloseServer, @TestFragmentedCloseClient);

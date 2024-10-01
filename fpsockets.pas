@@ -288,7 +288,7 @@ begin
     v6Only := 0;
     if fpsetsockopt(Result, IPPROTO_IPV6, IPV6_V6ONLY, @v6Only, SizeOf(v6Only)) <> 0 then
     begin
-      FpClose(Result);
+      Sockets.CloseSocket(Result);
       raise EDualStackNotSupported.Create('Dualstack option not supported on this system: ' + socketerror.ToString);
     end;
   end;
@@ -296,7 +296,7 @@ end;
 
 function isIPv4Address(const Address:String):Boolean;
 var
-  dummy:in_addr;
+  dummy:sockets.in_addr;
 begin
   Result := TryStrToHostAddr(Address, dummy);
 end;
@@ -712,7 +712,7 @@ begin
   Result := Default(specialize TReceiveFromMessage<T>);
   UdpMessage := ReceiveFrom(ASocket, @Result.Data, SizeOf(Result.Data), AFlags);
   if UdpMessage.DataSize < SizeOf(T) then
-    if UdpMessage.DataSize = 0 then 
+    if UdpMessage.DataSize = 0 then
         raise ESocketError.Create(EsockEWOULDBLOCK, 'recvfrom')
     else
     begin
@@ -827,7 +827,7 @@ end;
 
 generic function ReceiveArrayFrom<T>(const ASocket: TFPSocket; MaxCount: SizeInt;
   AFlags: Integer = 0): specialize TReceiveFromMessage<specialize TArray<T>>;
-var    
+var
   Frag: TBytes;
   UdpMessage: TReceiveFromResult;
 begin
@@ -854,7 +854,7 @@ end;
 generic function ReceiveArrayFromNonBlocking<T>(const ASocket: TFPSocket;
   MaxCount: SizeInt = -1; AFlags: Integer = 0
   ): specialize TNullable<specialize TReceiveFromMessage<specialize TArray<T>>>;
-var  
+var
   Frag: TBytes;
   UdpMessage: TReceiveFromResult;
 begin
@@ -898,7 +898,7 @@ var
   nonblock: u_long;
 begin
   nonblock := Ord(AValue);
-  ioctlsocket(ASocket, LongInt(FIONBIO), @nonblock);
+  ioctlsocket(ASocket.FD, LongInt(FIONBIO), @nonblock);
 end;
 {$Else}
 var

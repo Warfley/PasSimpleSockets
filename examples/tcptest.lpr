@@ -202,7 +202,15 @@ begin
       Connect(sock, '127.0.0.1', 1337);
       Sleep(100);
       if not StreamClosed(sock) then
+      begin
         ClientError := 'Should detect closed stream by server';
+        Exit;
+      end;
+      try
+        ReceiveStr(sock);
+        ClientError := 'Should detect closed stream by server';
+      except on E: EConnectionClosedException do
+      end;
     finally
       CloseSocket(sock);
     end;
@@ -300,7 +308,7 @@ begin
     for i:=0 to Length(Received) -1 do
       if Received[i]<>ReplyStr[i+1] then
       begin
-        ClientError := 'Unexpected response Char ' + Received[i] + '@' + i.ToString;;
+        ClientError := 'Unexpected response Char ' + Received[i] + '@' + i.ToString;
         Exit;
       end;
   except on E: Exception do
@@ -359,6 +367,293 @@ begin
       Received := specialize Receive<TChunkString>(sock);
       if Received <> ReplyStr then
         ClientError := 'Unexpected response: ' + Received;
+    finally
+      CloseSocket(sock);
+    end;
+  except on E: Exception do
+    ClientError := 'Exception: ' + E.Message;
+  end;
+end;
+
+procedure TestNonBlockingServer;
+var
+  sock: TFPSocket;
+  Conn: TFPSocketConnection;
+  Received: String;
+begin
+  ServerError := '';
+  try
+    sock := TCPSocket(stIPv4);
+    try
+      SetNonBlocking(sock, True);
+      Bind(sock, '0.0.0.0', 1337);
+      Listen(sock, 0);
+      while not AcceptNonBlocking(sock).Unpack(Conn) do
+        Sleep(100);
+      try
+        SetNonBlocking(Conn.Socket, True);
+        repeat
+          Received := ReceiveStr(Conn.Socket);
+          Sleep(100);
+        until Received<>'';
+        Sleep(500);
+        SendStr(Conn.Socket, ReplyStr);
+      finally
+        CloseSocket(Conn.Socket);
+      end;
+    finally
+      CloseSocket(sock);
+    end;
+    if Received <> HelloStr then
+      ServerError := 'Unexpected response: ' + Received;
+  except on E: Exception do
+    ServerError := 'Exception: ' + E.Message;
+  end;
+end;
+
+procedure TestNonBlockingClient;
+var
+  sock: TFPSocket;
+  Received: Array of Char;
+  State:TConnectionState;
+  i:Integer;
+begin
+  ClientError := '';
+  try
+    sock := TCPSocket(stIPv4);
+    try
+      SetNonBlocking(sock, True);
+      Sleep(200);
+      State := Connect(sock, '127.0.0.1', 1337);
+      while State = csPending do
+      begin
+        Sleep(100);
+        State:=ConnectionState(sock);
+      end;
+      if State <> csConnected then
+      begin
+        ClientError := 'Connection not successful';
+        Exit;
+      end;
+      Sleep(200);
+      SendStr(sock, HelloStr);
+      repeat
+        Received := specialize ReceiveArray<Char>(sock, 16);
+        Sleep(100);
+      until Received<>nil;
+    finally
+      CloseSocket(sock);
+    end;
+    for i:=0 to Length(Received) -1 do
+      if Received[i]<>ReplyStr[i+1] then
+      begin
+        ClientError := 'Unexpected response Char ' + Received[i] + '@' + i.ToString;;
+        Exit;
+      end;
+  except on E: Exception do
+    ClientError := 'Exception: ' + E.Message;
+  end;
+end;
+
+procedure TestRefusedServer;
+var
+  sock: TFPSocket;
+begin
+  ServerError := '';
+  try
+    sock := TCPSocket(stIPv4);
+    try
+      Bind(sock, '0.0.0.0', 1337);
+      Listen(sock, 1);
+    finally
+      CloseSocket(sock);
+    end;
+  except on E: Exception do
+    ServerError := 'Exception: ' + E.Message;
+  end;
+end;
+
+procedure TestRefusedClient;
+var
+  sock: TFPSocket;
+begin
+  ClientError := '';
+  try
+    sock := TCPSocket(stIPv4);
+    try
+      SetNonBlocking(sock, True);
+      Connect(sock, '127.0.0.1', 1337);
+      Sleep(200);
+      if ConnectionState(sock) <> csRefused then
+      begin
+        ClientError := 'Connection should be refused';
+        Exit;
+      end;
+    finally
+      CloseSocket(sock);
+    end;
+  except on E: Exception do
+    ClientError := 'Exception: ' + E.Message;
+  end;
+end;
+
+procedure TestFragmentationServer;
+var
+  sock: TFPSocket;
+  Conn: TFPSocketConnection;
+begin
+  ServerError := '';
+  try
+    sock := TCPSocket(stIPv4);
+    try
+      Bind(sock, '0.0.0.0', 1337);
+      Listen(sock, 0);
+      Conn := AcceptConnection(sock);
+      try
+        SetNonBlocking(Conn.Socket, True);
+        try
+          while not specialize ReceiveNonBlocking<LongInt>(Conn.Socket) do
+            Sleep(50);
+          ServerError := 'Should have thrown fragmentation exception';
+        except on E: EFragmentedData do
+          if Length(e.Fragment) <> SizeOf(Word) then
+            ServerError := 'Unexpected Fragment Size';
+        on E: Exception do
+          raise E;
+        end;
+      finally
+        CloseSocket(Conn.Socket);
+      end;
+    finally
+      CloseSocket(sock);
+    end;
+  except on E: Exception do
+    ServerError := 'Exception: ' + E.Message;
+  end;
+end;
+
+procedure TestFragmentationClient;
+var
+  sock: TFPSocket;
+begin
+  ClientError := '';
+  try
+    sock := TCPSocket(stIPv4);
+    try
+      Connect(sock, '127.0.0.1', 1337);
+      specialize Send<Word>(sock, 42);
+      Sleep(100);
+    finally
+      CloseSocket(sock);
+    end;
+  except on E: Exception do
+    ClientError := 'Exception: ' + E.Message;
+  end;
+end;
+
+procedure TestFragmentedArrayServer;
+var
+  sock: TFPSocket;
+  Conn: TFPSocketConnection;
+begin
+  ServerError := '';
+  try
+    sock := TCPSocket(stIPv4);
+    try
+      Bind(sock, '0.0.0.0', 1337);
+      Listen(sock, 0);
+      Conn := AcceptConnection(sock);
+      try
+        SetNonBlocking(Conn.Socket, True);
+        try
+          while specialize ReceiveArray<LongInt>(Conn.Socket) = nil do
+            Sleep(50);
+          ServerError := 'Should have thrown fragmentation exception';
+        except on E: EFragmentedData do
+          if Length(e.Fragment) <> SizeOf(Word) then
+            ServerError := 'Unexpected Fragment Size';
+        on E: Exception do
+          raise E;
+        end;
+      finally
+        CloseSocket(Conn.Socket);
+      end;
+    finally
+      CloseSocket(sock);
+    end;
+  except on E: Exception do
+    ServerError := 'Exception: ' + E.Message;
+  end;
+end;
+
+procedure TestFragmentedArrayClient;
+var
+  sock: TFPSocket;
+begin
+  ClientError := '';
+  try
+    sock := TCPSocket(stIPv4);
+    try
+      Connect(sock, '127.0.0.1', 1337);
+      specialize SendArray<Word>(sock, [42]);
+      Sleep(100);
+    finally
+      CloseSocket(sock);
+    end;
+  except on E: Exception do
+    ClientError := 'Exception: ' + E.Message;
+  end;
+end;
+
+{ When trying to read an array, and the array is fragmented, and you give it a
+  read size thats larger than whats in the buffer, instead of a fragmented
+  exception, a connection closed exception will be raised.
+  This is suboptimal/undesired behavior, but arises from the internal calls to
+  Receive, which raises an exception on end of stream. This test verifies that,
+  arguably faulty behavior, so it may very well be fixed in the future }
+procedure TestFragmentedCloseServer;
+var
+  sock: TFPSocket;
+  Conn: TFPSocketConnection;
+begin
+  ServerError := '';
+  try
+    sock := TCPSocket(stIPv4);
+    try
+      Bind(sock, '0.0.0.0', 1337);
+      Listen(sock, 0);
+      Conn := AcceptConnection(sock);
+      try
+        try
+          Sleep(100);
+          specialize ReceiveArray<LongInt>(Conn.Socket, 2);
+          ServerError := 'Should have thrown ConnectionClosed Exception';
+        except on E: EConnectionClosedException do ;
+        on E: Exception do
+          raise E;
+        end;
+      finally
+        CloseSocket(Conn.Socket);
+      end;
+    finally
+      CloseSocket(sock);
+    end;
+  except on E: Exception do
+    ServerError := 'Exception: ' + E.Message;
+  end;
+end;
+
+procedure TestFragmentedCloseClient;
+var
+  sock: TFPSocket;
+begin
+  ClientError := '';
+  try
+    sock := TCPSocket(stIPv4);
+    try
+      Connect(sock, '127.0.0.1', 1337);
+      specialize SendArray<Word>(sock, [42, 43, 44]);
+      Sleep(100);
     finally
       CloseSocket(sock);
     end;
@@ -430,4 +725,9 @@ begin
   RunTest('DataAvailableTest', @IPv4TestServer, @DataAvailableTestClient);
   RunTest('ReceiveArrayTest', @ReceiveArrayTestServer, @ReceiveArrayTestClient);
   RunTest('ChunkTest', @ChunkTestServer, @ChunkTestClient);
+  RunTest('NonBlockingTest', @TestNonBlockingServer, @TestNonBlockingClient);
+  RunTest('RefusedTest', @TestRefusedServer, @TestRefusedClient);
+  RunTest('FragmentationTest', @TestFragmentationServer, @TestFragmentationClient);
+  RunTest('FragmentedArrayTest', @TestFragmentedArrayServer, @TestFragmentedArrayClient);
+  RunTest('FragmentedCloseTest', @TestFragmentedCloseServer, @TestFragmentedCloseClient);
 end.

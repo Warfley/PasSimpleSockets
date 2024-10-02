@@ -1,3 +1,6 @@
+$${\color{red}\textbf{WARNING:}}$$ The fpsockets unit has been added to the [FCL](https://gitlab.com/freepascal.org/fpc/source/-/blob/main/packages/fcl-net/src/fpsockets.pp) and will be shipped with the next version of the FPC.
+All future development will take place in that context. This repository will probably not be updated anymore.
+
 # PasSimpleSockets
 Simple socket API wrapper for FreePascal.
 Provides access to the socket API in a less C-ish way.
